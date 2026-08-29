@@ -1,4 +1,4 @@
-.PHONY: generate build run open clean
+.PHONY: generate build release package run open clean
 
 generate:
 	xcodegen generate
@@ -6,14 +6,27 @@ generate:
 build: generate
 	xcodebuild -scheme PhraseDeck -configuration Debug \
 		-derivedDataPath build \
-		CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=YES \
+		CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO \
 		build
 
-run: build
-	open build/Build/Products/Debug/PhraseDeck.app
+release: generate
+	xcodebuild -scheme PhraseDeck -configuration Release \
+		-derivedDataPath build \
+		CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO \
+		build
+
+package: release
+	rm -rf dist/PhraseDeck.app
+	mkdir -p dist
+	cp -R build/Build/Products/Release/PhraseDeck.app dist/
+	xattr -cr dist/PhraseDeck.app || true
+	@echo "Packaged: $(CURDIR)/dist/PhraseDeck.app"
+
+run: package
+	open dist/PhraseDeck.app
 
 open: generate
 	open PhraseDeck.xcodeproj
 
 clean:
-	rm -rf build PhraseDeck.xcodeproj
+	rm -rf build PhraseDeck.xcodeproj dist

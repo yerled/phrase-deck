@@ -33,6 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 PermissionManager.requestAccessibility()
             }
         }
+
+        // Event tap needs Accessibility; retry once after user may have granted it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            if PermissionManager.hasAccessibility {
+                HotKeyManager.shared.register()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -48,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "显示常用短语 ⌥⌘Space", action: #selector(showOverlay), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "显示常用短语（连按两次 ⌘）", action: #selector(showOverlay), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "请求辅助功能权限", action: #selector(requestAccess), keyEquivalent: ""))

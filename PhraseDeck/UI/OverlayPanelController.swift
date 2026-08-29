@@ -1,20 +1,27 @@
 import AppKit
 import SwiftUI
+import Carbon.HIToolbox
 
 @MainActor
 final class OverlayPanelController: NSObject {
     static let shared = OverlayPanelController()
 
     private var panel: NSPanel?
-    private var keyMonitor: Any?
-    private var localMonitor: Any?
+    private var keyTap: CFMachPort?
+    private var keyTapSource: CFRunLoopSource?
+
+    /// Snapshot readable from the CGEvent tap thread.
+    nonisolated(unsafe) private var activePhrases: [Phrase] = []
+    nonisolated(unsafe) private var tapPort: CFMachPort?
 
     private override init() {
         super.init()
     }
 
+    var isVisible: Bool { panel?.isVisible == true }
+
     func toggle() {
-        if panel?.isVisible == true {
+        if isVisible {
             dismiss()
         } else {
             show()
@@ -25,6 +32,7 @@ final class OverlayPanelController: NSObject {
         dismiss()
 
         let phrases = PhraseStore.shared.topPhrases(limit: 10)
+        activePhrases = phrases
         let hosting = NSHostingView(
             rootView: OverlayView(
                 phrases: phrases,
@@ -36,7 +44,7 @@ final class OverlayPanelController: NSObject {
                 }
             )
         )
-        hosting.frame = NSRect(x: 0, y: 0, width: 420, height: max(120, 44 + phrases.count * 44))
+        hosting.frame = NSRect(x: 0, y: 0, width: 440, height: max(120, 52 + phrases.count * 48))
 
         let panel = NSPanel(
             contentRect: hosting.frame,
@@ -58,18 +66,18 @@ final class OverlayPanelController: NSObject {
         panel.orderFrontRegardless()
         self.panel = panel
 
-        installKeyMonitors(phrases: phrases)
+        installKeyTap()
     }
 
     func dismiss() {
-        removeKeyMonitors()
+        removeKeyTap()
         panel?.orderOut(nil)
         panel = nil
+        activePhrases = []
     }
 
     private func insert(_ phrase: Phrase) {
         dismiss()
-        // Slight delay so panel resigns and focus returns to previous app
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             PhraseStore.shared.markUsed(phrase.id)
             _ = TextInserter.insert(phrase.text)
@@ -88,58 +96,109 @@ final class OverlayPanelController: NSObject {
         panel.setFrameOrigin(origin)
     }
 
-    private func installKeyMonitors(phrases: [Phrase]) {
-        removeKeyMonitors()
+    // MARK: - Key interception (must swallow digits so they don't reach the focused field)
 
-        let handler: (NSEvent) -> NSEvent? = { [weak self] event in
-            guard let self else { return event }
-            if event.type == .keyDown {
-                if event.keyCode == 53 { // Esc
-                    self.dismiss()
+    private func installKeyTap() {
+        removeKeyTap()
+
+        let mask =
+            (1 << CGEventType.keyDown.rawValue)
+            | (1 << CGEventType.keyUp.rawValue)
+
+        let userInfo = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(mask),
+            callback: { _, type, event, userInfo -> Unmanaged<CGEvent>? in
+                guard let userInfo else {
+                    return Unmanaged.passUnretained(event)
+                }
+                let controller = Unmanaged<OverlayPanelController>.fromOpaque(userInfo).takeUnretainedValue()
+
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    if let port = controller.tapPort {
+                        CGEvent.tapEnable(tap: port, enable: true)
+                    }
+                    return Unmanaged.passUnretained(event)
+                }
+
+                if controller.shouldSwallow(event: event, type: type) {
                     return nil
                 }
-                if let index = Self.indexForKey(event) {
-                    if index < phrases.count {
-                        self.insert(phrases[index])
-                        return nil
-                    }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: userInfo
+        ) else {
+            NSLog("PhraseDeck: overlay key tap failed — check Accessibility permission")
+            return
+        }
+
+        keyTap = tap
+        tapPort = tap
+        keyTapSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        if let keyTapSource {
+            CFRunLoopAddSource(CFRunLoopGetMain(), keyTapSource, .commonModes)
+        }
+        CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
+    private func removeKeyTap() {
+        if let keyTap {
+            CGEvent.tapEnable(tap: keyTap, enable: false)
+        }
+        if let keyTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), keyTapSource, .commonModes)
+        }
+        keyTap = nil
+        tapPort = nil
+        keyTapSource = nil
+    }
+
+    /// Called from the CGEvent tap callback (may be off main).
+    nonisolated private func shouldSwallow(event: CGEvent, type: CGEventType) -> Bool {
+        guard type == .keyDown || type == .keyUp else { return false }
+
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let flags = event.flags
+        if flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate) {
+            return false
+        }
+
+        if keyCode == Int64(kVK_Escape) {
+            if type == .keyDown {
+                DispatchQueue.main.async { [weak self] in
+                    self?.dismiss()
                 }
             }
-            return event
+            return true
         }
 
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: handler)
-        keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
-            _ = handler(event)
+        guard let index = Self.indexForKeyCode(keyCode) else { return false }
+        let snapshot = activePhrases
+
+        if type == .keyDown {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, index < snapshot.count else { return }
+                self.insert(snapshot[index])
+            }
         }
+        return true
     }
 
-    private func removeKeyMonitors() {
-        if let localMonitor {
-            NSEvent.removeMonitor(localMonitor)
-            self.localMonitor = nil
-        }
-        if let keyMonitor {
-            NSEvent.removeMonitor(keyMonitor)
-            self.keyMonitor = nil
-        }
-    }
-
-    /// Maps keys 1…9,0 → indices 0…9
-    private static func indexForKey(_ event: NSEvent) -> Int? {
-        // Prefer characters ignoring modifiers
-        guard let chars = event.charactersIgnoringModifiers, let ch = chars.first else { return nil }
-        switch ch {
-        case "1": return 0
-        case "2": return 1
-        case "3": return 2
-        case "4": return 3
-        case "5": return 4
-        case "6": return 5
-        case "7": return 6
-        case "8": return 7
-        case "9": return 8
-        case "0": return 9
+    nonisolated private static func indexForKeyCode(_ keyCode: Int64) -> Int? {
+        switch keyCode {
+        case Int64(kVK_ANSI_1): return 0
+        case Int64(kVK_ANSI_2): return 1
+        case Int64(kVK_ANSI_3): return 2
+        case Int64(kVK_ANSI_4): return 3
+        case Int64(kVK_ANSI_5): return 4
+        case Int64(kVK_ANSI_6): return 5
+        case Int64(kVK_ANSI_7): return 6
+        case Int64(kVK_ANSI_8): return 7
+        case Int64(kVK_ANSI_9): return 8
+        case Int64(kVK_ANSI_0): return 9
         default: return nil
         }
     }

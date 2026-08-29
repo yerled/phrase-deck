@@ -10,8 +10,8 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             GroupBox("快捷键") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("唤起浮层：⌥⌘Space（Option + Command + Space）", systemImage: "keyboard")
-                    Text("浮层内按 1–9、0 插入对应短语，Esc 关闭。")
+                    Label("唤起浮层：连按两次 ⌘（Command）", systemImage: "keyboard")
+                    Text("约 0.4 秒内双击左或右 Command；浮层内按 1–9、0 插入，Esc 关闭。")
                         .foregroundStyle(.secondary)
                         .font(.callout)
                 }
