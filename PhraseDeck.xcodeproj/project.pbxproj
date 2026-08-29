@@ -1,0 +1,384 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0F110D2613CAD1FA8E9E7F30 /* PhraseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F77B0E8317F28DCB296A47E /* PhraseStore.swift */; };
+		240F4F08ED2F464F03406F6C /* PhraseDeckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5859E2DF0AEB37563356ABB /* PhraseDeckApp.swift */; };
+		46F8210C0FB28C34A2EE8D24 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A081FC13F508543C3CEAE76C /* Assets.xcassets */; };
+		5FD6A84B353CF5016F6E5C6F /* Phrase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387391FB6E04520EDEF1031C /* Phrase.swift */; };
+		605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */; };
+		86DCD8877A27EC74C7A7B2F2 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38EB2A7A35E43EC28041A068 /* PermissionManager.swift */; };
+		9853270647F8AEE9F3F643E4 /* ClipboardCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A71108D6B8B859ACE086419 /* ClipboardCollector.swift */; };
+		A3F66295064BA52AB4F350DE /* OverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */; };
+		CC165C121A9C56CBC73A82B9 /* OverlayPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */; };
+		CE1D69882889202306269EDE /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46125AD46F42313114B3250 /* TextInserter.swift */; };
+		E80D40D01DD3298EDD424199 /* PhraseMiner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */; };
+		F2D32719EFF15F11920CD25F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF3B77D72D56D0D66DFBDEF /* SettingsView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayView.swift; sourceTree = "<group>"; };
+		2A71108D6B8B859ACE086419 /* ClipboardCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCollector.swift; sourceTree = "<group>"; };
+		2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPanelController.swift; sourceTree = "<group>"; };
+		387391FB6E04520EDEF1031C /* Phrase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phrase.swift; sourceTree = "<group>"; };
+		38EB2A7A35E43EC28041A068 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
+		743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseMiner.swift; sourceTree = "<group>"; };
+		9F77B0E8317F28DCB296A47E /* PhraseStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseStore.swift; sourceTree = "<group>"; };
+		A081FC13F508543C3CEAE76C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B5859E2DF0AEB37563356ABB /* PhraseDeckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseDeckApp.swift; sourceTree = "<group>"; };
+		CB7B3D99C2E5F8826028860B /* PhraseDeck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhraseDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E46125AD46F42313114B3250 /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
+		EAF3B77D72D56D0D66DFBDEF /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		3867CF445BD0689AF1AF7E1C = {
+			isa = PBXGroup;
+			children = (
+				B2581261FE9AE3529FC78C84 /* PhraseDeck */,
+				97ACCFD5B67D7C489C8CF5EC /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		484B62C889D4611BC5FFD83B /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B5859E2DF0AEB37563356ABB /* PhraseDeckApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		50947FF8683DF5A6AC227245 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A081FC13F508543C3CEAE76C /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5BD2805CA197FFDF63CAE87B /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */,
+				0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */,
+				EAF3B77D72D56D0D66DFBDEF /* SettingsView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		8EC3C19C19FA8D5B8465C9DB /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				387391FB6E04520EDEF1031C /* Phrase.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		97ACCFD5B67D7C489C8CF5EC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CB7B3D99C2E5F8826028860B /* PhraseDeck.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9F571AFC93E6688EEC33E3C6 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				2A71108D6B8B859ACE086419 /* ClipboardCollector.swift */,
+				47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */,
+				38EB2A7A35E43EC28041A068 /* PermissionManager.swift */,
+				743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */,
+				9F77B0E8317F28DCB296A47E /* PhraseStore.swift */,
+				E46125AD46F42313114B3250 /* TextInserter.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		B2581261FE9AE3529FC78C84 /* PhraseDeck */ = {
+			isa = PBXGroup;
+			children = (
+				484B62C889D4611BC5FFD83B /* App */,
+				8EC3C19C19FA8D5B8465C9DB /* Models */,
+				50947FF8683DF5A6AC227245 /* Resources */,
+				9F571AFC93E6688EEC33E3C6 /* Services */,
+				5BD2805CA197FFDF63CAE87B /* UI */,
+			);
+			path = PhraseDeck;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		40A0532C19F6AA462A467635 /* PhraseDeck */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3500E1198344B2FE63C33575 /* Build configuration list for PBXNativeTarget "PhraseDeck" */;
+			buildPhases = (
+				7D13D83531BCB2818F8940AA /* Sources */,
+				238EE2D2A470660D23D47A56 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PhraseDeck;
+			packageProductDependencies = (
+			);
+			productName = PhraseDeck;
+			productReference = CB7B3D99C2E5F8826028860B /* PhraseDeck.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		0353E4238EFD81679D336ECB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					40A0532C19F6AA462A467635 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = BF8C327F1E5295DFC11334E7 /* Build configuration list for PBXProject "PhraseDeck" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 3867CF445BD0689AF1AF7E1C;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 97ACCFD5B67D7C489C8CF5EC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				40A0532C19F6AA462A467635 /* PhraseDeck */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		238EE2D2A470660D23D47A56 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				46F8210C0FB28C34A2EE8D24 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7D13D83531BCB2818F8940AA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9853270647F8AEE9F3F643E4 /* ClipboardCollector.swift in Sources */,
+				605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */,
+				CC165C121A9C56CBC73A82B9 /* OverlayPanelController.swift in Sources */,
+				A3F66295064BA52AB4F350DE /* OverlayView.swift in Sources */,
+				86DCD8877A27EC74C7A7B2F2 /* PermissionManager.swift in Sources */,
+				5FD6A84B353CF5016F6E5C6F /* Phrase.swift in Sources */,
+				240F4F08ED2F464F03406F6C /* PhraseDeckApp.swift in Sources */,
+				E80D40D01DD3298EDD424199 /* PhraseMiner.swift in Sources */,
+				0F110D2613CAD1FA8E9E7F30 /* PhraseStore.swift in Sources */,
+				F2D32719EFF15F11920CD25F /* SettingsView.swift in Sources */,
+				CE1D69882889202306269EDE /* TextInserter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		62FDB610E2A805A1C23252DB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PhraseDeck/Resources/PhraseDeck.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PhraseDeck/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
+				PRODUCT_NAME = PhraseDeck;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		8165E94875A7DC618F7E2F8D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = PhraseDeck/Resources/PhraseDeck.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PhraseDeck/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
+				PRODUCT_NAME = PhraseDeck;
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		9D77FD5BB491603DECD3A325 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		D83A2C4F1C167390F3E59C8F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3500E1198344B2FE63C33575 /* Build configuration list for PBXNativeTarget "PhraseDeck" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				62FDB610E2A805A1C23252DB /* Debug */,
+				8165E94875A7DC618F7E2F8D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BF8C327F1E5295DFC11334E7 /* Build configuration list for PBXProject "PhraseDeck" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D83A2C4F1C167390F3E59C8F /* Debug */,
+				9D77FD5BB491603DECD3A325 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 0353E4238EFD81679D336ECB /* Project object */;
+}

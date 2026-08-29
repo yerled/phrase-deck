@@ -1,0 +1,32 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+.swiftpm/
+.DS_Store
+
+# App
+*.app
+PhraseDeck.xcodeproj/project.xcworkspace/xcuserdata/
+PhraseDeck.xcodeproj/xcuserdata/
+
+# Secrets / local
+.env
+.env.*
+*.pem
+*.p12
+
+# SwiftPM
+Packages/
+Package.resolved
+.packageresolved
