@@ -78,6 +78,27 @@ final class PhraseStore: ObservableObject {
         }
     }
 
+    func applyAISuggestions(_ items: [AIPhraseSuggestion]) {
+        for item in items {
+            let normalized = PhraseMiner.normalize(item.text)
+            guard !normalized.isEmpty else { continue }
+            let weight = max(1, min(item.weight ?? 5, 10))
+
+            if let idx = phrases.firstIndex(where: { $0.text == normalized }) {
+                phrases[idx].count = max(phrases[idx].count, weight)
+                phrases[idx].lastUsedAt = Date()
+                phrases[idx].source = .ai
+            } else {
+                phrases.insert(
+                    Phrase(text: normalized, count: weight, source: .ai),
+                    at: 0
+                )
+            }
+        }
+        trimIfNeeded()
+        persist()
+    }
+
     // MARK: - Persistence
 
     private func load() {

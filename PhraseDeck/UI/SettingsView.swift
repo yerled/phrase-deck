@@ -3,95 +3,152 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject private var store = PhraseStore.shared
     @ObservedObject private var clipboard = ClipboardCollector.shared
+    @ObservedObject private var appSend = AppSendCollector.shared
+    @ObservedObject private var messageLog = MessageLogStore.shared
+    @ObservedObject private var ai = CursorAISummarizer.shared
     @State private var draft = ""
     @State private var accessibilityOK = PermissionManager.hasAccessibility
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GroupBox("快捷键") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("唤起浮层：连按两次 ⌘（Command）", systemImage: "keyboard")
-                    Text("约 0.4 秒内双击左或右 Command；浮层内按 1–9、0 插入，Esc 关闭。")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                GroupBox("快捷键") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("唤起浮层：连按两次 ⌘（Command）", systemImage: "keyboard")
+                        Text("约 0.4 秒内双击左或右 Command；浮层内按 1–9、0 插入，Esc 关闭。")
+                            .foregroundStyle(.secondary)
+                            .font(.callout)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(4)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(4)
-            }
 
-            GroupBox("权限") {
-                HStack {
-                    Image(systemName: accessibilityOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(accessibilityOK ? .green : .orange)
-                    Text(accessibilityOK ? "辅助功能已授权（可粘贴到其它 App）" : "需要辅助功能权限才能粘贴")
-                    Spacer()
-                    if !accessibilityOK {
-                        Button("去授权") {
-                            PermissionManager.requestAccessibility()
-                            PermissionManager.openAccessibilitySettings()
+                GroupBox("权限") {
+                    HStack {
+                        Image(systemName: accessibilityOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(accessibilityOK ? .green : .orange)
+                        Text(accessibilityOK ? "辅助功能已授权" : "需要辅助功能（采集发送 + 粘贴）")
+                        Spacer()
+                        if !accessibilityOK {
+                            Button("去授权") {
+                                PermissionManager.requestAccessibility()
+                                PermissionManager.openAccessibilitySettings()
+                            }
+                        }
+                        Button("刷新") {
+                            accessibilityOK = PermissionManager.hasAccessibility
                         }
                     }
-                    Button("刷新") {
-                        accessibilityOK = PermissionManager.hasAccessibility
-                    }
-                }
-                .padding(4)
-            }
-
-            GroupBox("采集") {
-                Toggle("从剪贴板学习常用短语（推荐，比全键盘记录更安全）", isOn: $clipboard.isEnabled)
                     .padding(4)
-            }
-
-            GroupBox("手动添加") {
-                HStack {
-                    TextField("输入一句常用语…", text: $draft)
-                        .textFieldStyle(.roundedBorder)
-                    Button("添加") {
-                        let text = draft
-                        draft = ""
-                        _ = store.record(text, source: .manual)
-                    }
-                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .padding(4)
-            }
 
-            GroupBox("权重 Top 短语") {
-                List {
-                    ForEach(store.topPhrases(limit: 30)) { phrase in
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(phrase.text)
-                                Text("次数 \(phrase.count) · 分数 \(String(format: "%.1f", phrase.score)) · \(phrase.source.rawValue)")
+                GroupBox("自动采集（飞书 / Cursor）") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("采集飞书、Cursor 里按下 Enter / ⌘Enter 发送的内容", isOn: Binding(
+                            get: { appSend.isEnabled },
+                            set: { newValue in
+                                appSend.isEnabled = newValue
+                                if newValue { appSend.start() } else { appSend.stop() }
+                            }
+                        ))
+                        Toggle("同时从剪贴板学习", isOn: $clipboard.isEnabled)
+                        if let last = appSend.lastCaptured {
+                            Text("最近采集自 \(appSend.lastAppName ?? "?")：\(last)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        Text("已记录 \(messageLog.messages.count) 条 · 待 AI 总结 \(messageLog.pendingCount) 条")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(4)
+                }
+
+                GroupBox("Cursor AI 总结（每 30 分钟）") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("启用定时总结", isOn: Binding(
+                            get: { ai.isEnabled },
+                            set: { newValue in
+                                ai.isEnabled = newValue
+                                if newValue { ai.start() } else { ai.stop() }
+                            }
+                        ))
+                        SecureField("CURSOR_API_KEY（可选；也可先在终端 agent login）", text: $ai.apiKey)
+                            .textFieldStyle(.roundedBorder)
+                        HStack {
+                            Button(ai.isRunning ? "总结中…" : "立即总结一次") {
+                                Task { await ai.summarizeNow() }
+                            }
+                            .disabled(ai.isRunning)
+                            Spacer()
+                            if let last = ai.lastRunAt {
+                                Text("上次：\(last.formatted(date: .abbreviated, time: .shortened))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            Spacer()
-                            Button(role: .destructive) {
-                                store.delete(phrase.id)
-                            } label: {
-                                Image(systemName: "trash")
+                        }
+                        Text(ai.lastStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    .padding(4)
+                }
+
+                GroupBox("手动添加") {
+                    HStack {
+                        TextField("输入一句常用语…", text: $draft)
+                            .textFieldStyle(.roundedBorder)
+                        Button("添加") {
+                            let text = draft
+                            draft = ""
+                            _ = store.record(text, source: .manual)
+                        }
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .padding(4)
+                }
+
+                GroupBox("权重 Top 短语") {
+                    List {
+                        ForEach(store.topPhrases(limit: 30)) { phrase in
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(phrase.text)
+                                    Text("次数 \(phrase.count) · 分数 \(String(format: "%.1f", phrase.score)) · \(phrase.source.rawValue)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(role: .destructive) {
+                                    store.delete(phrase.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
                             }
-                            .buttonStyle(.borderless)
                         }
                     }
+                    .frame(minHeight: 200)
                 }
-                .frame(minHeight: 220)
-            }
 
-            HStack {
-                Button("清空全部短语", role: .destructive) {
-                    store.clearAll()
+                HStack {
+                    Button("清空短语库", role: .destructive) {
+                        store.clearAll()
+                    }
+                    Button("清空采集消息", role: .destructive) {
+                        messageLog.clear()
+                    }
+                    Spacer()
+                    Text("~/Library/Application Support/PhraseDeck/")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
-                Spacer()
-                Text("数据保存在 ~/Library/Application Support/PhraseDeck/")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
+            .padding(20)
         }
-        .padding(20)
-        .frame(width: 560, height: 640)
+        .frame(width: 580, height: 720)
         .onAppear {
             accessibilityOK = PermissionManager.hasAccessibility
         }

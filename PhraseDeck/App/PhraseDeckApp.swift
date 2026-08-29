@@ -22,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         setupStatusItem()
         ClipboardCollector.shared.start()
+        AppSendCollector.shared.start()
+        CursorAISummarizer.shared.start()
 
         HotKeyManager.shared.onHotKey = {
             OverlayPanelController.shared.toggle()
@@ -34,10 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Event tap needs Accessibility; retry once after user may have granted it.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             if PermissionManager.hasAccessibility {
                 HotKeyManager.shared.register()
+                AppSendCollector.shared.start()
             }
         }
     }
@@ -45,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         HotKeyManager.shared.unregister()
         ClipboardCollector.shared.stop()
+        AppSendCollector.shared.stop()
+        CursorAISummarizer.shared.stop()
     }
 
     private func setupStatusItem() {
@@ -56,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "显示常用短语（连按两次 ⌘）", action: #selector(showOverlay), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "立即 AI 总结", action: #selector(runAI), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "请求辅助功能权限", action: #selector(requestAccess), keyEquivalent: ""))
@@ -70,14 +75,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OverlayPanelController.shared.show()
     }
 
+    @objc private func runAI() {
+        Task { await CursorAISummarizer.shared.summarizeNow() }
+    }
+
     @objc private func openSettings() {
         if settingsWindow == nil {
             let view = SettingsView()
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
             window.title = "PhraseDeck 设置"
-            window.styleMask = [.titled, .closable, .miniaturizable]
-            window.setContentSize(NSSize(width: 560, height: 640))
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 580, height: 720))
             window.center()
             settingsWindow = window
         }

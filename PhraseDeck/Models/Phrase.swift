@@ -37,4 +37,6 @@ enum PhraseSource: String, Codable {
     case clipboard
     case manual
     case mined
+    case appSend
+    case ai
 }
