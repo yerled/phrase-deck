@@ -21,7 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         setupStatusItem()
-        ClipboardCollector.shared.start()
         AppSendCollector.shared.start()
         CursorAISummarizer.shared.start()
 
@@ -46,7 +45,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         HotKeyManager.shared.unregister()
-        ClipboardCollector.shared.stop()
         AppSendCollector.shared.stop()
         CursorAISummarizer.shared.stop()
     }

@@ -11,7 +11,7 @@ struct OverlayView: View {
             header
             glassDivider
             if phrases.isEmpty {
-                Text("暂无短语。复制一段文字，或在菜单里手动添加。")
+                Text("暂无短语。在飞书或 Cursor 发送消息后等待 AI 总结，或在菜单里手动添加。")
                     .font(.system(size: 13))
                     .foregroundStyle(.primary.opacity(0.65))
                     .padding(18)

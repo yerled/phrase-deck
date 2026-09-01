@@ -2,7 +2,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject private var store = PhraseStore.shared
-    @ObservedObject private var clipboard = ClipboardCollector.shared
     @ObservedObject private var appSend = AppSendCollector.shared
     @ObservedObject private var messageLog = MessageLogStore.shared
     @ObservedObject private var ai = CursorAISummarizer.shared
@@ -51,21 +50,20 @@ struct SettingsView: View {
                                 if newValue { appSend.start() } else { appSend.stop() }
                             }
                         ))
-                        Toggle("同时从剪贴板学习", isOn: $clipboard.isEnabled)
                         if let last = appSend.lastCaptured {
                             Text("最近采集自 \(appSend.lastAppName ?? "?")：\(last)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
                         }
-                        Text("已记录 \(messageLog.messages.count) 条 · 待 AI 总结 \(messageLog.pendingCount) 条")
+                        Text("已记录 \(messageLog.messages.count) 条发送日志 · 短语库 \(store.phrases.count) 条")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .padding(4)
                 }
 
-                GroupBox("Cursor AI 总结（每 30 分钟）") {
+                GroupBox("Cursor AI 全量总结（每 30 分钟）") {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("启用定时总结", isOn: Binding(
                             get: { ai.isEnabled },
@@ -110,9 +108,9 @@ struct SettingsView: View {
                     .padding(4)
                 }
 
-                GroupBox("权重 Top 短语") {
+                GroupBox("短语库") {
                     List {
-                        ForEach(store.topPhrases(limit: 30)) { phrase in
+                        ForEach(store.phrases.sorted { $0.score > $1.score }) { phrase in
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(phrase.text)

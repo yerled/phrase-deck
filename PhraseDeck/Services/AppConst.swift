@@ -20,5 +20,4 @@ enum AppConst {
 
     static let summarizeIntervalSeconds: TimeInterval = 30 * 60
     static let maxLoggedMessages = 3000
-    static let maxMessagesPerSummarize = 120
 }

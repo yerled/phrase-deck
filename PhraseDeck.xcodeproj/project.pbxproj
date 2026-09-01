@@ -16,7 +16,6 @@
 		605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */; };
 		76EB01BC9D25B12461EDFF18 /* AppConst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D70695C61C157C02C0A3373 /* AppConst.swift */; };
 		86DCD8877A27EC74C7A7B2F2 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38EB2A7A35E43EC28041A068 /* PermissionManager.swift */; };
-		9853270647F8AEE9F3F643E4 /* ClipboardCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A71108D6B8B859ACE086419 /* ClipboardCollector.swift */; };
 		A3F66295064BA52AB4F350DE /* OverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */; };
 		BA2D7936922E494296B9AD07 /* SentMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE7F4399C8128A27031F549 /* SentMessage.swift */; };
 		CC165C121A9C56CBC73A82B9 /* OverlayPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */; };
@@ -28,7 +27,6 @@
 
 /* Begin PBXFileReference section */
 		0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayView.swift; sourceTree = "<group>"; };
-		2A71108D6B8B859ACE086419 /* ClipboardCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCollector.swift; sourceTree = "<group>"; };
 		2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPanelController.swift; sourceTree = "<group>"; };
 		387391FB6E04520EDEF1031C /* Phrase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phrase.swift; sourceTree = "<group>"; };
 		38EB2A7A35E43EC28041A068 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
@@ -104,7 +102,6 @@
 			children = (
 				9D70695C61C157C02C0A3373 /* AppConst.swift */,
 				6A5FE69F309AF69F4CB70E45 /* AppSendCollector.swift */,
-				2A71108D6B8B859ACE086419 /* ClipboardCollector.swift */,
 				58F7EED596740F15B475F384 /* CursorAISummarizer.swift */,
 				47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */,
 				8472E4D55C06A5AFE52E8FCE /* MessageLogStore.swift */,
@@ -200,7 +197,6 @@
 			files = (
 				76EB01BC9D25B12461EDFF18 /* AppConst.swift in Sources */,
 				54544F762726A6377914ACD1 /* AppSendCollector.swift in Sources */,
-				9853270647F8AEE9F3F643E4 /* ClipboardCollector.swift in Sources */,
 				07DC99D57460746666A49D09 /* CursorAISummarizer.swift in Sources */,
 				605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */,
 				CE50F8BF6C5A08030FC31E3F /* MessageLogStore.swift in Sources */,

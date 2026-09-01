@@ -49,7 +49,6 @@ final class CursorAISummarizer: ObservableObject {
                 await self?.summarizeIfNeeded(reason: "定时 30 分钟")
             }
         }
-        // First pass shortly after launch if there is pending data
         DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
             Task { @MainActor in
                 await self?.summarizeIfNeeded(reason: "启动后首次")
@@ -70,42 +69,45 @@ final class CursorAISummarizer: ObservableObject {
         guard isEnabled || force else { return }
         guard !isRunning else { return }
 
-        let pending = MessageLogStore.shared.pendingMessages(limit: AppConst.maxMessagesPerSummarize)
-        guard pending.count >= 3 || force else {
-            lastStatus = "待总结消息不足（\(pending.count)），跳过"
+        let phrases = PhraseStore.shared.phrases
+        let messages = MessageLogStore.shared.messages
+        guard !messages.isEmpty || force else {
+            lastStatus = "没有发送日志，跳过"
             return
         }
-        guard !pending.isEmpty else {
-            lastStatus = "没有新消息"
+        guard !messages.isEmpty || !phrases.isEmpty else {
+            lastStatus = "没有短语和日志，跳过"
             return
         }
 
         isRunning = true
-        lastStatus = "正在用 Cursor Agent 总结（\(reason)）…"
+        lastStatus = "正在全量总结（\(phrases.count) 条短语 + \(messages.count) 条日志，\(reason)）…"
         defer { isRunning = false }
 
         do {
-            let suggestions = try await runCursorAgent(messages: pending)
-            PhraseStore.shared.applyAISuggestions(suggestions)
-            MessageLogStore.shared.markSummarized(ids: pending.map(\.id))
+            let suggestions = try await runCursorAgent(phrases: phrases, messages: messages)
+            guard !suggestions.isEmpty else {
+                throw NSError(domain: "PhraseDeck", code: 3, userInfo: [
+                    NSLocalizedDescriptionKey: "Agent 返回空短语列表，已保留现有短语库",
+                ])
+            }
+            PhraseStore.shared.replaceAll(with: suggestions)
             let now = Date()
             lastRunAt = now
             UserDefaults.standard.set(now, forKey: Keys.lastRun)
-            lastStatus = "成功：写入 \(suggestions.count) 条短语（基于 \(pending.count) 条消息）"
+            lastStatus = "成功：短语库更新为 \(suggestions.count) 条（基于 \(phrases.count) 条原短语 + \(messages.count) 条日志）"
         } catch {
-            // Fallback: local mining so the tool still improves offline
-            for msg in pending {
+            for msg in messages {
                 for candidate in PhraseMiner.extractCandidates(from: msg.text) {
                     _ = PhraseStore.shared.record(candidate, source: .mined)
                 }
             }
-            MessageLogStore.shared.markSummarized(ids: pending.map(\.id))
-            lastStatus = "Cursor AI 失败，已本地提炼：\(error.localizedDescription)"
+            lastStatus = "Cursor AI 失败，已本地提炼（未替换短语库）：\(error.localizedDescription)"
             NSLog("PhraseDeck AI summarize failed: \(error)")
         }
     }
 
-    private func runCursorAgent(messages: [SentMessage]) async throws -> [AIPhraseSuggestion] {
+    private func runCursorAgent(phrases: [Phrase], messages: [SentMessage]) async throws -> [AIPhraseSuggestion] {
         let agentPath = Self.resolveAgentPath()
         guard FileManager.default.isExecutableFile(atPath: agentPath) else {
             throw NSError(domain: "PhraseDeck", code: 1, userInfo: [
@@ -113,7 +115,9 @@ final class CursorAISummarizer: ObservableObject {
             ])
         }
 
-        let prompt = Self.buildPrompt(messages: messages)
+        try writeWorkspaceInputs(phrases: phrases, messages: messages)
+        let prompt = Self.buildPrompt(phrases: phrases, messages: messages)
+
         var args = [
             "-p",
             "--mode", "ask",
@@ -129,28 +133,84 @@ final class CursorAISummarizer: ObservableObject {
         return try Self.parseSuggestions(from: output)
     }
 
-    private static func buildPrompt(messages: [SentMessage]) -> String {
+    private func writeWorkspaceInputs(phrases: [Phrase], messages: [SentMessage]) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        let phrasePayload = phrases.map {
+            WorkspacePhrase(text: $0.text, count: $0.count, source: $0.source.rawValue)
+        }
+        let messagePayload = messages.map {
+            WorkspaceMessage(text: $0.text, appName: $0.appName, createdAt: $0.createdAt)
+        }
+
+        try encoder.encode(phrasePayload).write(
+            to: workDir.appendingPathComponent("input-phrases.json"),
+            options: [.atomic]
+        )
+        try encoder.encode(messagePayload).write(
+            to: workDir.appendingPathComponent("input-messages.json"),
+            options: [.atomic]
+        )
+    }
+
+    private static func buildPrompt(phrases: [Phrase], messages: [SentMessage]) -> String {
         var lines: [String] = []
-        lines.append("你是个人常用语提炼助手。根据我在飞书(Lark)和 Cursor 里发出的消息，提炼可复用的日常短语。")
+        lines.append("你是个人常用语库维护助手。每次都是全量重建：根据「当前短语库」和「全部发送日志」，输出更新后的完整短语库。")
+        lines.append("工作区文件（全量，必须读完，禁止抽样）：")
+        lines.append("- input-phrases.json：当前短语库")
+        lines.append("- input-messages.json：全部发送日志")
         lines.append("要求：")
-        lines.append("1. 保留我的语气；去掉一次性上下文（人名、具体链接、一次性数字、代码）。")
-        lines.append("2. 每条尽量短，可直接粘贴发送（中英文都可）。")
-        lines.append("3. 输出 10~30 条。")
-        lines.append("4. 只输出 JSON 数组，不要 markdown，不要解释。格式：")
+        lines.append("1. 只保留工作、生活里可直接粘贴复用的话（打招呼、确认、约时间、致谢、催进度、请假、回复收到、同步进展等）。")
+        lines.append("2. 丢弃：一次性上下文、人名、具体链接、验证码、密码、代码、无意义碎片、过长不可复用的整段、纯数字/邮箱/URL、明显是调试或命令输出的内容。")
+        lines.append("3. 合并近义重复，保留更自然、更短、可直接发送的写法。")
+        lines.append("4. source=manual 的有用短语应保留，除非明显无意义。")
+        lines.append("5. 必须完整覆盖全部日志与现有短语，不要只输出 Top N，没有数量上限。有多少条真正可复用就输出多少条。不要编造日志和短语库里都没有依据的句子。")
+        lines.append("6. 只输出 JSON 数组，不要 markdown，不要解释。格式：")
         lines.append("[{\"text\":\"收到，我这边确认一下。\",\"weight\":8},{\"text\":\"LGTM\",\"weight\":6}]")
-        lines.append("weight 为 1~10，表示推荐常用程度。")
-        lines.append("")
-        lines.append("消息列表：")
-        for (i, msg) in messages.enumerated() {
-            let oneLine = msg.text.replacingOccurrences(of: "\n", with: " ")
-            lines.append("\(i + 1). [\(msg.appName)] \(oneLine)")
+        lines.append("weight 为正整数，表示常用程度（可按日志出现次数 + 原 count 估计，不设上限）。")
+
+        let inline = compactCorpus(phrases: phrases, messages: messages)
+        if inline.utf8.count <= 80_000 {
+            lines.append("")
+            lines.append(inline)
+        } else {
+            lines.append("")
+            lines.append("语料较大，请直接读取工作区里的两个 JSON 文件，不要只根据下面摘要判断。")
+            lines.append("当前短语 \(phrases.count) 条，发送日志 \(messages.count) 条。")
         }
         return lines.joined(separator: "\n")
     }
 
+    private static func compactCorpus(phrases: [Phrase], messages: [SentMessage]) -> String {
+        var lines: [String] = []
+        lines.append("当前短语库：")
+        if phrases.isEmpty {
+            lines.append("（空）")
+        } else {
+            for (i, phrase) in phrases.enumerated() {
+                lines.append("\(i + 1). [count=\(phrase.count), source=\(phrase.source.rawValue)] \(oneLine(phrase.text))")
+            }
+        }
+        lines.append("")
+        lines.append("发送日志：")
+        if messages.isEmpty {
+            lines.append("（空）")
+        } else {
+            for (i, msg) in messages.enumerated() {
+                lines.append("\(i + 1). [\(msg.appName)] \(oneLine(msg.text))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func oneLine(_ text: String) -> String {
+        text.replacingOccurrences(of: "\n", with: " ")
+    }
+
     private static func parseSuggestions(from raw: String) throws -> [AIPhraseSuggestion] {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Extract JSON array even if wrapped in prose / fences
         guard let start = trimmed.firstIndex(of: "["),
               let end = trimmed.lastIndex(of: "]"),
               start < end else {
@@ -161,7 +221,7 @@ final class CursorAISummarizer: ObservableObject {
         let json = String(trimmed[start...end])
         let data = Data(json.utf8)
         let items = try JSONDecoder().decode([AIPhraseSuggestion].self, from: data)
-        return items.filter { PhraseMiner.isEligiblePhrase($0.text) || !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return items.filter { PhraseMiner.isEligiblePhrase($0.text) }
     }
 
     private static func resolveAgentPath() -> String {
@@ -185,7 +245,6 @@ final class CursorAISummarizer: ObservableObject {
             if !environmentAPIKey.isEmpty {
                 env["CURSOR_API_KEY"] = environmentAPIKey
             }
-            // Ensure login agent can find credentials under user home
             env["HOME"] = NSHomeDirectory()
             process.environment = env
 
@@ -214,7 +273,6 @@ final class CursorAISummarizer: ObservableObject {
                     ]))
                     return
                 }
-                // Prefer stdout; some errors still print useful JSON on stdout
                 let combined = outStr.isEmpty ? errStr : outStr
                 if combined.localizedCaseInsensitiveContains("Authentication required") {
                     continuation.resume(throwing: NSError(domain: "PhraseDeck", code: 401, userInfo: [
@@ -226,4 +284,16 @@ final class CursorAISummarizer: ObservableObject {
             }
         }
     }
+}
+
+private struct WorkspacePhrase: Encodable {
+    var text: String
+    var count: Int
+    var source: String
+}
+
+private struct WorkspaceMessage: Encodable {
+    var text: String
+    var appName: String
+    var createdAt: Date
 }

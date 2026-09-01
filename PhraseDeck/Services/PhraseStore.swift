@@ -8,7 +8,6 @@ final class PhraseStore: ObservableObject {
     @Published private(set) var phrases: [Phrase] = []
 
     private let fileURL: URL
-    private let maxStored = 500
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -50,7 +49,6 @@ final class PhraseStore: ObservableObject {
 
         let phrase = Phrase(text: normalized, source: source)
         phrases.insert(phrase, at: 0)
-        trimIfNeeded()
         persist()
         return phrase
     }
@@ -72,30 +70,35 @@ final class PhraseStore: ObservableObject {
         persist()
     }
 
-    func remineFromClipboardHistory(_ texts: [String]) {
-        for text in texts {
-            _ = record(text, source: .mined)
+    /// Replace the library with a full AI rebuild. Matching text keeps id / createdAt.
+    func replaceAll(with items: [AIPhraseSuggestion]) {
+        var existingByText: [String: Phrase] = [:]
+        for phrase in phrases where existingByText[phrase.text] == nil {
+            existingByText[phrase.text] = phrase
         }
-    }
+        var next: [Phrase] = []
+        var seen = Set<String>()
 
-    func applyAISuggestions(_ items: [AIPhraseSuggestion]) {
         for item in items {
             let normalized = PhraseMiner.normalize(item.text)
-            guard !normalized.isEmpty else { continue }
-            let weight = max(1, min(item.weight ?? 5, 10))
+            guard PhraseMiner.isEligiblePhrase(normalized) else { continue }
+            guard seen.insert(normalized).inserted else { continue }
+            let weight = max(1, item.weight ?? 1)
 
-            if let idx = phrases.firstIndex(where: { $0.text == normalized }) {
-                phrases[idx].count = max(phrases[idx].count, weight)
-                phrases[idx].lastUsedAt = Date()
-                phrases[idx].source = .ai
+            if let existing = existingByText[normalized] {
+                var updated = existing
+                updated.count = weight
+                updated.lastUsedAt = Date()
+                if existing.source != .manual {
+                    updated.source = .ai
+                }
+                next.append(updated)
             } else {
-                phrases.insert(
-                    Phrase(text: normalized, count: weight, source: .ai),
-                    at: 0
-                )
+                next.append(Phrase(text: normalized, count: weight, source: .ai))
             }
         }
-        trimIfNeeded()
+
+        phrases = next
         persist()
     }
 
@@ -118,11 +121,6 @@ final class PhraseStore: ObservableObject {
         } catch {
             NSLog("PhraseStore persist failed: \(error)")
         }
-    }
-
-    private func trimIfNeeded() {
-        guard phrases.count > maxStored else { return }
-        phrases = phrases.sorted { $0.score > $1.score }.prefix(maxStored).map { $0 }
     }
 
     private func seedDemoPhrases() {

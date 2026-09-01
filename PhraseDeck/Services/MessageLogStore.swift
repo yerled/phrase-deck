@@ -28,8 +28,6 @@ final class MessageLogStore: ObservableObject {
         load()
     }
 
-    var pendingCount: Int { messages.filter { !$0.summarized }.count }
-
     @discardableResult
     func append(text: String, appBundleID: String, appName: String) -> SentMessage? {
         let normalized = PhraseMiner.normalize(text)
@@ -51,18 +49,6 @@ final class MessageLogStore: ObservableObject {
         // Immediate frequency signal so Top10 works before first AI pass
         _ = PhraseStore.shared.record(normalized, source: .appSend)
         return msg
-    }
-
-    func pendingMessages(limit: Int) -> [SentMessage] {
-        Array(messages.filter { !$0.summarized }.suffix(limit))
-    }
-
-    func markSummarized(ids: [UUID]) {
-        let set = Set(ids)
-        for i in messages.indices where set.contains(messages[i].id) {
-            messages[i].summarized = true
-        }
-        persist()
     }
 
     func clear() {

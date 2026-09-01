@@ -14,7 +14,7 @@ struct Phrase: Identifiable, Codable, Hashable {
         count: Int = 1,
         lastUsedAt: Date = Date(),
         createdAt: Date = Date(),
-        source: PhraseSource = .clipboard
+        source: PhraseSource = .manual
     ) {
         self.id = id
         self.text = text

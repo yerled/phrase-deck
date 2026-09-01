@@ -30,7 +30,7 @@ enum PhraseMiner {
         return alnum.count >= 2
     }
 
-    /// Extract candidate phrases from a longer blob (clipboard / message).
+    /// Extract candidate phrases from a longer blob (sent message).
     static func extractCandidates(from text: String) -> [String] {
         let normalized = normalize(text)
         guard !normalized.isEmpty else { return [] }
