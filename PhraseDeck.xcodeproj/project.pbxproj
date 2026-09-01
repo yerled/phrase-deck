@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		07DC99D57460746666A49D09 /* CursorAISummarizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F7EED596740F15B475F384 /* CursorAISummarizer.swift */; };
 		0F110D2613CAD1FA8E9E7F30 /* PhraseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F77B0E8317F28DCB296A47E /* PhraseStore.swift */; };
+		1B436AFE8B8DD7C5634EC8DE /* SmartReplyGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEC7D4FBD9BBB1AE879EB1C5 /* SmartReplyGenerator.swift */; };
 		240F4F08ED2F464F03406F6C /* PhraseDeckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5859E2DF0AEB37563356ABB /* PhraseDeckApp.swift */; };
 		46F8210C0FB28C34A2EE8D24 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A081FC13F508543C3CEAE76C /* Assets.xcassets */; };
 		54544F762726A6377914ACD1 /* AppSendCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5FE69F309AF69F4CB70E45 /* AppSendCollector.swift */; };
@@ -16,7 +17,9 @@
 		605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */; };
 		76EB01BC9D25B12461EDFF18 /* AppConst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D70695C61C157C02C0A3373 /* AppConst.swift */; };
 		86DCD8877A27EC74C7A7B2F2 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38EB2A7A35E43EC28041A068 /* PermissionManager.swift */; };
+		A3D9BF454AB79D3843072652 /* WindowContextCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE159DB96B792EAA34FC183B /* WindowContextCapture.swift */; };
 		A3F66295064BA52AB4F350DE /* OverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */; };
+		A81FC4C4C9E056D3B8727CEC /* AgentCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB70B679C53BCA528E2D44C /* AgentCLI.swift */; };
 		BA2D7936922E494296B9AD07 /* SentMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE7F4399C8128A27031F549 /* SentMessage.swift */; };
 		CC165C121A9C56CBC73A82B9 /* OverlayPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */; };
 		CE1D69882889202306269EDE /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46125AD46F42313114B3250 /* TextInserter.swift */; };
@@ -38,9 +41,12 @@
 		9D70695C61C157C02C0A3373 /* AppConst.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConst.swift; sourceTree = "<group>"; };
 		9F77B0E8317F28DCB296A47E /* PhraseStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseStore.swift; sourceTree = "<group>"; };
 		A081FC13F508543C3CEAE76C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AE159DB96B792EAA34FC183B /* WindowContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowContextCapture.swift; sourceTree = "<group>"; };
 		B5859E2DF0AEB37563356ABB /* PhraseDeckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseDeckApp.swift; sourceTree = "<group>"; };
 		CB7B3D99C2E5F8826028860B /* PhraseDeck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhraseDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CDE7F4399C8128A27031F549 /* SentMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentMessage.swift; sourceTree = "<group>"; };
+		CEC7D4FBD9BBB1AE879EB1C5 /* SmartReplyGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartReplyGenerator.swift; sourceTree = "<group>"; };
+		DBB70B679C53BCA528E2D44C /* AgentCLI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCLI.swift; sourceTree = "<group>"; };
 		E46125AD46F42313114B3250 /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
 		EAF3B77D72D56D0D66DFBDEF /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -100,6 +106,7 @@
 		9F571AFC93E6688EEC33E3C6 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				DBB70B679C53BCA528E2D44C /* AgentCLI.swift */,
 				9D70695C61C157C02C0A3373 /* AppConst.swift */,
 				6A5FE69F309AF69F4CB70E45 /* AppSendCollector.swift */,
 				58F7EED596740F15B475F384 /* CursorAISummarizer.swift */,
@@ -108,7 +115,9 @@
 				38EB2A7A35E43EC28041A068 /* PermissionManager.swift */,
 				743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */,
 				9F77B0E8317F28DCB296A47E /* PhraseStore.swift */,
+				CEC7D4FBD9BBB1AE879EB1C5 /* SmartReplyGenerator.swift */,
 				E46125AD46F42313114B3250 /* TextInserter.swift */,
+				AE159DB96B792EAA34FC183B /* WindowContextCapture.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -195,6 +204,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A81FC4C4C9E056D3B8727CEC /* AgentCLI.swift in Sources */,
 				76EB01BC9D25B12461EDFF18 /* AppConst.swift in Sources */,
 				54544F762726A6377914ACD1 /* AppSendCollector.swift in Sources */,
 				07DC99D57460746666A49D09 /* CursorAISummarizer.swift in Sources */,
@@ -209,7 +219,9 @@
 				0F110D2613CAD1FA8E9E7F30 /* PhraseStore.swift in Sources */,
 				BA2D7936922E494296B9AD07 /* SentMessage.swift in Sources */,
 				F2D32719EFF15F11920CD25F /* SettingsView.swift in Sources */,
+				1B436AFE8B8DD7C5634EC8DE /* SmartReplyGenerator.swift in Sources */,
 				CE1D69882889202306269EDE /* TextInserter.swift in Sources */,
+				A3D9BF454AB79D3843072652 /* WindowContextCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -226,7 +238,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PhraseDeck/Resources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit -framework Vision";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;
@@ -244,7 +260,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PhraseDeck/Resources/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit -framework Vision";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;

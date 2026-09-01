@@ -27,6 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.onHotKey = {
             OverlayPanelController.shared.toggle()
         }
+        HotKeyManager.shared.onTripleHotKey = {
+            OverlayPanelController.shared.showSmartReply()
+        }
         HotKeyManager.shared.register()
 
         if !PermissionManager.hasAccessibility {
@@ -58,10 +61,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "显示常用短语（连按两次 ⌘）", action: #selector(showOverlay), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "智能回复（连按三次 ⌘）", action: #selector(showSmartReply), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "立即 AI 总结", action: #selector(runAI), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "请求辅助功能权限", action: #selector(requestAccess), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "请求屏幕录制权限", action: #selector(requestScreen), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "退出 PhraseDeck", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
@@ -71,6 +76,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showOverlay() {
         OverlayPanelController.shared.show()
+    }
+
+    @objc private func showSmartReply() {
+        OverlayPanelController.shared.showSmartReply()
     }
 
     @objc private func runAI() {
@@ -95,6 +104,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func requestAccess() {
         PermissionManager.requestAccessibility()
         PermissionManager.openAccessibilitySettings()
+    }
+
+    @objc private func requestScreen() {
+        PermissionManager.requestScreenRecording()
+        PermissionManager.openScreenRecordingSettings()
     }
 
     @objc private func quit() {

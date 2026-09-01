@@ -2,32 +2,13 @@ import SwiftUI
 import AppKit
 
 struct OverlayView: View {
-    let phrases: [Phrase]
-    let onSelect: (Phrase, Int) -> Void
-    let onDismiss: () -> Void
+    @ObservedObject var controller: OverlayPanelController
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             glassDivider
-            if phrases.isEmpty {
-                Text("暂无短语。在飞书或 Cursor 发送消息后等待 AI 总结，或在菜单里手动添加。")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.primary.opacity(0.65))
-                    .padding(18)
-            } else {
-                VStack(spacing: 2) {
-                    ForEach(Array(phrases.enumerated()), id: \.element.id) { index, phrase in
-                        OverlayRow(
-                            index: index,
-                            phrase: phrase,
-                            onSelect: { onSelect(phrase, index) }
-                        )
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-            }
+            content
         }
         .frame(width: 440)
         .background(GlassBackground())
@@ -50,15 +31,74 @@ struct OverlayView: View {
         .shadow(color: .black.opacity(0.22), radius: 28, y: 12)
     }
 
+    @ViewBuilder
+    private var content: some View {
+        switch controller.presentation {
+        case .phrases:
+            if controller.phrases.isEmpty {
+                Text("暂无短语。在飞书或 Cursor 发送消息后等待 AI 总结，或在菜单里手动添加。")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.primary.opacity(0.65))
+                    .padding(18)
+            } else {
+                VStack(spacing: 2) {
+                    ForEach(Array(controller.phrases.enumerated()), id: \.element.id) { index, phrase in
+                        OverlayRow(
+                            index: index,
+                            title: phrase.text,
+                            badge: "×\(phrase.count)",
+                            onSelect: { controller.selectPhrase(phrase) }
+                        )
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+            }
+        case .smartReply:
+            if !controller.smartStatus.isEmpty, controller.smartSuggestions.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text(controller.smartStatus)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.primary.opacity(0.7))
+                }
+                .padding(18)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let note = controller.smartNote, !note.isEmpty {
+                        Text(note)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.primary.opacity(0.5))
+                            .padding(.horizontal, 10)
+                            .padding(.top, 8)
+                    }
+                    VStack(spacing: 2) {
+                        ForEach(Array(controller.smartSuggestions.enumerated()), id: \.element.id) { index, item in
+                            OverlayRow(
+                                index: index,
+                                title: item.text,
+                                badge: item.direction,
+                                onSelect: { controller.selectSuggestion(item) }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+            }
+        }
+    }
+
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "text.badge.plus")
+            Image(systemName: controller.presentation == .smartReply ? "sparkles" : "text.badge.plus")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.primary)
-            Text("PhraseDeck")
+            Text(controller.presentation == .smartReply ? "智能回复" : "PhraseDeck")
                 .font(.system(size: 14, weight: .semibold))
             Spacer()
-            Text("连按两次 ⌘ · 1–0 插入 · Esc")
+            Text(controller.presentation == .smartReply ? "连按三次 ⌘ · 1–6 插入 · Esc" : "连按两次 ⌘ · 1–0 插入 · Esc")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.primary.opacity(0.55))
         }
@@ -76,7 +116,8 @@ struct OverlayView: View {
 
 private struct OverlayRow: View {
     let index: Int
-    let phrase: Phrase
+    let title: String
+    let badge: String
     let onSelect: () -> Void
     @State private var hovering = false
 
@@ -101,7 +142,7 @@ private struct OverlayRow: View {
                     )
                     .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
 
-                Text(phrase.text)
+                Text(title)
                     .font(.system(size: 13.5, weight: .medium))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -109,9 +150,10 @@ private struct OverlayRow: View {
 
                 Spacer(minLength: 8)
 
-                Text("×\(phrase.count)")
+                Text(badge)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.primary.opacity(0.4))
+                    .lineLimit(1)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 9)

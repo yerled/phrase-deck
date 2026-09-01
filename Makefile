@@ -1,4 +1,4 @@
-.PHONY: generate build release package run open clean
+.PHONY: generate build release package run dev logs open clean
 
 generate:
 	xcodegen generate
@@ -24,6 +24,17 @@ package: release
 
 run: package
 	open dist/PhraseDeck.app
+
+# Daily loop: Debug build, replace the running app. Same bundle ID, so TCC permissions stick.
+dev: build
+	-killall PhraseDeck 2>/dev/null
+	sleep 0.3
+	open build/Build/Products/Debug/PhraseDeck.app
+	@echo "Launched Debug: $(CURDIR)/build/Build/Products/Debug/PhraseDeck.app"
+	@echo "Logs: make logs"
+
+logs:
+	log stream --style compact --predicate 'process == "PhraseDeck"'
 
 open: generate
 	open PhraseDeck.xcodeproj

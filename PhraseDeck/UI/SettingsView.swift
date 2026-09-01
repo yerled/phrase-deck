@@ -7,14 +7,16 @@ struct SettingsView: View {
     @ObservedObject private var ai = CursorAISummarizer.shared
     @State private var draft = ""
     @State private var accessibilityOK = PermissionManager.hasAccessibility
+    @State private var screenOK = PermissionManager.hasScreenRecording
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 GroupBox("快捷键") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Label("唤起浮层：连按两次 ⌘（Command）", systemImage: "keyboard")
-                        Text("约 0.4 秒内双击左或右 Command；浮层内按 1–9、0 插入，Esc 关闭。")
+                        Label("常用回复：连按两次 ⌘", systemImage: "keyboard")
+                        Label("智能回复：连按三次 ⌘", systemImage: "sparkles")
+                        Text("约 0.4 秒内连按；第三次会从常用语升级为智能回复。浮层内按数字插入，Esc 关闭。")
                             .foregroundStyle(.secondary)
                             .font(.callout)
                     }
@@ -23,19 +25,34 @@ struct SettingsView: View {
                 }
 
                 GroupBox("权限") {
-                    HStack {
-                        Image(systemName: accessibilityOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(accessibilityOK ? .green : .orange)
-                        Text(accessibilityOK ? "辅助功能已授权" : "需要辅助功能（采集发送 + 粘贴）")
-                        Spacer()
-                        if !accessibilityOK {
-                            Button("去授权") {
-                                PermissionManager.requestAccessibility()
-                                PermissionManager.openAccessibilitySettings()
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: accessibilityOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .foregroundStyle(accessibilityOK ? .green : .orange)
+                            Text(accessibilityOK ? "辅助功能已授权" : "需要辅助功能（采集发送 + 粘贴）")
+                            Spacer()
+                            if !accessibilityOK {
+                                Button("去授权") {
+                                    PermissionManager.requestAccessibility()
+                                    PermissionManager.openAccessibilitySettings()
+                                }
                             }
                         }
-                        Button("刷新") {
+                        HStack {
+                            Image(systemName: screenOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .foregroundStyle(screenOK ? .green : .orange)
+                            Text(screenOK ? "屏幕录制已授权" : "智能回复兜底需要屏幕录制（识别窗口文字）")
+                            Spacer()
+                            if !screenOK {
+                                Button("去授权") {
+                                    PermissionManager.requestScreenRecording()
+                                    PermissionManager.openScreenRecordingSettings()
+                                }
+                            }
+                        }
+                        Button("刷新权限") {
                             accessibilityOK = PermissionManager.hasAccessibility
+                            screenOK = PermissionManager.hasScreenRecording
                         }
                     }
                     .padding(4)
@@ -72,8 +89,13 @@ struct SettingsView: View {
                                 if newValue { ai.start() } else { ai.stop() }
                             }
                         ))
-                        SecureField("CURSOR_API_KEY（可选；也可先在终端 agent login）", text: $ai.apiKey)
+                        SecureField("CURSOR_API_KEY（智能回复 / 总结必填）", text: $ai.apiKey)
                             .textFieldStyle(.roundedBorder)
+                        Link("打开 Cursor Dashboard 创建 User API Key", destination: URL(string: "https://cursor.com/dashboard/integrations")!)
+                            .font(.caption)
+                        Text("菜单栏 App 读不到终端里的 agent login。无头模式必须把 Key 填在这里。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         HStack {
                             Button(ai.isRunning ? "总结中…" : "立即总结一次") {
                                 Task { await ai.summarizeNow() }
@@ -149,6 +171,7 @@ struct SettingsView: View {
         .frame(width: 580, height: 720)
         .onAppear {
             accessibilityOK = PermissionManager.hasAccessibility
+            screenOK = PermissionManager.hasScreenRecording
         }
     }
 }

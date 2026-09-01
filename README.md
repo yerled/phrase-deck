@@ -27,17 +27,21 @@ macOS 菜单栏工具：从飞书 / Cursor 的发送内容学习常用短语，*
 
 ## 快速开始
 
+日常开发和热更新不一样：Swift 没有 Vite 那种保存即刷新，但**不必每次打包安装**。
+
 ```bash
-xcodegen generate
-open PhraseDeck.xcodeproj   # Xcode 里 ⌘R
+make dev      # Debug 编译并重启（日常改代码用这个）
+make logs     # 看 NSLog（智能回复采词、OCR 失败原因）
+make open     # 打开 Xcode，⌘R 运行，断点/控制台更完整
+make package  # 只在要分发/装到 dist 时才打 Release 包
 ```
 
-或：
+`make dev` 和 Xcode 跑的是同一个 Bundle ID，辅助功能 / 屏幕录制授权会保留。
+
+首次：
 
 ```bash
-make run      # Release 打包到 dist/PhraseDeck.app 并启动
-make open     # 仅生成工程并打开
-make package  # 只打包
+make open     # 生成工程并打开 Xcode，⌘R
 ```
 
 ## 使用

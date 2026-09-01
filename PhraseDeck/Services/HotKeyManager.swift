@@ -1,11 +1,12 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Detects a double-tap of the ⌘ key (left or right) to open the overlay.
+/// Detects double / triple taps of the ⌘ key (left or right).
 final class HotKeyManager {
     static let shared = HotKeyManager()
 
     var onHotKey: (() -> Void)?
+    var onTripleHotKey: (() -> Void)?
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -13,7 +14,8 @@ final class HotKeyManager {
     private var commandIsDown = false
     private var sawOtherKeyWhileCommand = false
     private var lastCleanTapAt: CFAbsoluteTime = 0
-    private let doubleTapWindow: CFAbsoluteTime = 0.40
+    private var consecutiveTaps = 0
+    private let tapWindow: CFAbsoluteTime = 0.40
 
     private init() {}
 
@@ -64,6 +66,7 @@ final class HotKeyManager {
         commandIsDown = false
         sawOtherKeyWhileCommand = false
         lastCleanTapAt = 0
+        consecutiveTaps = 0
     }
 
     deinit {
@@ -120,17 +123,28 @@ final class HotKeyManager {
 
             guard wasCleanTap else {
                 lastCleanTapAt = 0
+                consecutiveTaps = 0
                 return
             }
 
             let now = CFAbsoluteTimeGetCurrent()
-            if lastCleanTapAt > 0, now - lastCleanTapAt <= doubleTapWindow {
-                lastCleanTapAt = 0
+            if lastCleanTapAt > 0, now - lastCleanTapAt <= tapWindow {
+                consecutiveTaps += 1
+            } else {
+                consecutiveTaps = 1
+            }
+            lastCleanTapAt = now
+
+            if consecutiveTaps == 2 {
                 DispatchQueue.main.async { [weak self] in
                     self?.onHotKey?()
                 }
-            } else {
-                lastCleanTapAt = now
+            } else if consecutiveTaps >= 3 {
+                consecutiveTaps = 0
+                lastCleanTapAt = 0
+                DispatchQueue.main.async { [weak self] in
+                    self?.onTripleHotKey?()
+                }
             }
         }
     }

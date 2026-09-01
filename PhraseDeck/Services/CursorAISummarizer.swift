@@ -108,28 +108,9 @@ final class CursorAISummarizer: ObservableObject {
     }
 
     private func runCursorAgent(phrases: [Phrase], messages: [SentMessage]) async throws -> [AIPhraseSuggestion] {
-        let agentPath = Self.resolveAgentPath()
-        guard FileManager.default.isExecutableFile(atPath: agentPath) else {
-            throw NSError(domain: "PhraseDeck", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "未找到 agent CLI（\(agentPath)）。请安装 Cursor Agent 或配置 PATH。",
-            ])
-        }
-
         try writeWorkspaceInputs(phrases: phrases, messages: messages)
         let prompt = Self.buildPrompt(phrases: phrases, messages: messages)
-
-        var args = [
-            "-p",
-            "--mode", "ask",
-            "--output-format", "text",
-            "--workspace", workDir.path,
-            prompt,
-        ]
-        if !apiKey.isEmpty {
-            args.insert(contentsOf: ["--api-key", apiKey], at: 0)
-        }
-
-        let output = try await Self.runProcess(launchPath: agentPath, arguments: args, environmentAPIKey: apiKey)
+        let output = try await AgentCLI.runAsk(prompt: prompt, apiKey: apiKey, workspace: workDir)
         return try Self.parseSuggestions(from: output)
     }
 
@@ -210,79 +191,9 @@ final class CursorAISummarizer: ObservableObject {
     }
 
     private static func parseSuggestions(from raw: String) throws -> [AIPhraseSuggestion] {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let start = trimmed.firstIndex(of: "["),
-              let end = trimmed.lastIndex(of: "]"),
-              start < end else {
-            throw NSError(domain: "PhraseDeck", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "Agent 输出里没有 JSON 数组",
-            ])
-        }
-        let json = String(trimmed[start...end])
-        let data = Data(json.utf8)
+        let data = try AgentCLI.extractJSONArray(from: raw)
         let items = try JSONDecoder().decode([AIPhraseSuggestion].self, from: data)
         return items.filter { PhraseMiner.isEligiblePhrase($0.text) }
-    }
-
-    private static func resolveAgentPath() -> String {
-        let candidates = [
-            NSString(string: "~/.local/bin/agent").expandingTildeInPath,
-            "/usr/local/bin/agent",
-            "/opt/homebrew/bin/agent",
-        ]
-        for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
-            return path
-        }
-        return candidates[0]
-    }
-
-    private static func runProcess(launchPath: String, arguments: [String], environmentAPIKey: String) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: launchPath)
-            process.arguments = arguments
-            var env = ProcessInfo.processInfo.environment
-            if !environmentAPIKey.isEmpty {
-                env["CURSOR_API_KEY"] = environmentAPIKey
-            }
-            env["HOME"] = NSHomeDirectory()
-            process.environment = env
-
-            let out = Pipe()
-            let err = Pipe()
-            process.standardOutput = out
-            process.standardError = err
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
-                return
-            }
-
-            DispatchQueue.global(qos: .utility).async {
-                process.waitUntilExit()
-                let outData = out.fileHandleForReading.readDataToEndOfFile()
-                let errData = err.fileHandleForReading.readDataToEndOfFile()
-                let outStr = String(data: outData, encoding: .utf8) ?? ""
-                let errStr = String(data: errData, encoding: .utf8) ?? ""
-
-                if process.terminationStatus != 0, outStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    continuation.resume(throwing: NSError(domain: "PhraseDeck", code: Int(process.terminationStatus), userInfo: [
-                        NSLocalizedDescriptionKey: errStr.isEmpty ? "agent 退出码 \(process.terminationStatus)" : errStr,
-                    ]))
-                    return
-                }
-                let combined = outStr.isEmpty ? errStr : outStr
-                if combined.localizedCaseInsensitiveContains("Authentication required") {
-                    continuation.resume(throwing: NSError(domain: "PhraseDeck", code: 401, userInfo: [
-                        NSLocalizedDescriptionKey: "需要 Cursor 登录：终端执行 agent login，或在设置里填 CURSOR_API_KEY",
-                    ]))
-                    return
-                }
-                continuation.resume(returning: combined)
-            }
-        }
     }
 }
 

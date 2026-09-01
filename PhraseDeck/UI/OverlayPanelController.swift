@@ -3,15 +3,27 @@ import SwiftUI
 import Carbon.HIToolbox
 
 @MainActor
-final class OverlayPanelController: NSObject {
+final class OverlayPanelController: NSObject, ObservableObject {
     static let shared = OverlayPanelController()
+
+    enum Presentation {
+        case phrases
+        case smartReply
+    }
+
+    @Published private(set) var presentation: Presentation = .phrases
+    @Published private(set) var phrases: [Phrase] = []
+    @Published private(set) var smartStatus: String = ""
+    @Published private(set) var smartSuggestions: [SmartReplySuggestion] = []
+    @Published private(set) var smartNote: String?
 
     private var panel: NSPanel?
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
+    private var generation = 0
 
     /// Snapshot readable from the CGEvent tap thread.
-    nonisolated(unsafe) private var activePhrases: [Phrase] = []
+    nonisolated(unsafe) private var activeTexts: [String] = []
     nonisolated(unsafe) private var tapPort: CFMachPort?
 
     private override init() {
@@ -29,59 +41,142 @@ final class OverlayPanelController: NSObject {
     }
 
     func show() {
-        dismiss()
+        generation += 1
+        presentation = .phrases
+        phrases = PhraseStore.shared.topPhrases(limit: 10)
+        smartSuggestions = []
+        smartNote = nil
+        smartStatus = ""
+        presentPanel()
+    }
 
-        let phrases = PhraseStore.shared.topPhrases(limit: 10)
-        activePhrases = phrases
-        let hosting = NSHostingView(
-            rootView: OverlayView(
-                phrases: phrases,
-                onSelect: { [weak self] phrase, _ in
-                    self?.insert(phrase)
-                },
-                onDismiss: { [weak self] in
-                    self?.dismiss()
-                }
-            )
-        )
-        hosting.frame = NSRect(x: 0, y: 0, width: 440, height: max(120, 52 + phrases.count * 48))
+    func showSmartReply() {
+        if isVisible {
+            dismiss()
+        }
+        let target = WindowContextCapture.targetApplication()
+        generation += 1
+        let token = generation
 
-        let panel = NSPanel(
-            contentRect: hosting.frame,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.hidesOnDeactivate = false
-        panel.contentView = hosting
-        panel.isMovableByWindowBackground = true
+        presentation = .smartReply
+        phrases = []
+        smartSuggestions = []
+        smartNote = nil
+        smartStatus = "正在读取当前窗口…"
+        presentPanel()
 
-        positionNearMouse(panel)
-        panel.orderFrontRegardless()
-        self.panel = panel
+        Task { @MainActor in
+            guard token == generation else { return }
+            let context = await WindowContextCapture.capture(app: target)
+            guard token == generation else { return }
+            smartStatus = context.isUseful ? "正在生成回复方向…" : "窗口文字不足，正在准备通用回复…"
+            relayout()
 
-        installKeyTap()
+            let result = await SmartReplyGenerator.generate(from: context)
+            guard token == generation else { return }
+            smartSuggestions = result.suggestions
+            smartNote = result.note
+            smartStatus = ""
+            syncActiveTexts()
+            relayout()
+        }
     }
 
     func dismiss() {
+        generation += 1
         removeKeyTap()
         panel?.orderOut(nil)
         panel = nil
-        activePhrases = []
+        activeTexts = []
+        smartSuggestions = []
+        smartNote = nil
+        smartStatus = ""
     }
 
-    private func insert(_ phrase: Phrase) {
+    private func presentPanel() {
+        if panel == nil {
+            let hosting = NSHostingView(rootView: OverlayView(controller: self))
+            hosting.frame = NSRect(x: 0, y: 0, width: 440, height: estimatedHeight)
+
+            let panel = NSPanel(
+                contentRect: hosting.frame,
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false
+            )
+            panel.isFloatingPanel = true
+            panel.level = .floating
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = false
+            panel.hidesOnDeactivate = false
+            panel.contentView = hosting
+            panel.isMovableByWindowBackground = true
+            self.panel = panel
+            installKeyTap()
+        } else {
+            relayout()
+        }
+
+        syncActiveTexts()
+        if let panel {
+            positionNearMouse(panel)
+            panel.orderFrontRegardless()
+        }
+    }
+
+    private func insertText(_ text: String, phrase: Phrase? = nil) {
         dismiss()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            PhraseStore.shared.markUsed(phrase.id)
-            _ = TextInserter.insert(phrase.text)
+            if let phrase {
+                PhraseStore.shared.markUsed(phrase.id)
+            }
+            _ = TextInserter.insert(text)
         }
+    }
+
+    func selectPhrase(_ phrase: Phrase) {
+        insertText(phrase.text, phrase: phrase)
+    }
+
+    func selectSuggestion(_ suggestion: SmartReplySuggestion) {
+        insertText(suggestion.text)
+    }
+
+    private func syncActiveTexts() {
+        switch presentation {
+        case .phrases:
+            activeTexts = phrases.map(\.text)
+        case .smartReply:
+            activeTexts = smartSuggestions.map(\.text)
+        }
+    }
+
+    private var estimatedHeight: CGFloat {
+        switch presentation {
+        case .phrases:
+            if phrases.isEmpty { return 120 }
+            return 52 + 16 + CGFloat(phrases.count) * 48
+        case .smartReply:
+            if !smartSuggestions.isEmpty {
+                let note = smartNote == nil ? 0 : 28
+                return 52 + 16 + CGFloat(note) + CGFloat(smartSuggestions.count) * 64
+            }
+            return 150
+        }
+    }
+
+    private func relayout() {
+        guard let panel else { return }
+        let size = NSSize(width: 440, height: estimatedHeight)
+        panel.contentView?.frame.size = size
+        var frame = panel.frame
+        let dy = size.height - frame.size.height
+        frame.origin.y -= dy
+        frame.size = size
+        panel.setFrame(frame, display: true)
+        positionNearMouse(panel)
     }
 
     private func positionNearMouse(_ panel: NSPanel) {
@@ -176,12 +271,12 @@ final class OverlayPanelController: NSObject {
         }
 
         guard let index = Self.indexForKeyCode(keyCode) else { return false }
-        let snapshot = activePhrases
+        let snapshot = activeTexts
 
         if type == .keyDown {
             DispatchQueue.main.async { [weak self] in
                 guard let self, index < snapshot.count else { return }
-                self.insert(snapshot[index])
+                self.insertText(snapshot[index], phrase: index < self.phrases.count ? self.phrases[index] : nil)
             }
         }
         return true
