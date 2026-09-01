@@ -1,93 +1,214 @@
 import Foundation
 
-struct SmartReplySuggestion: Identifiable, Equatable, Decodable {
+enum SmartReplyOrigin: String {
+    case canned
+    case enhanced
+    case added
+}
+
+struct SmartReplySuggestion: Identifiable, Equatable {
     var id: UUID
     var direction: String
     var text: String
+    var slot: String?
+    var origin: SmartReplyOrigin
 
-    init(id: UUID = UUID(), direction: String, text: String) {
+    init(
+        id: UUID = UUID(),
+        direction: String,
+        text: String,
+        slot: String? = nil,
+        origin: SmartReplyOrigin = .canned
+    ) {
         self.id = id
         self.direction = direction
         self.text = text
+        self.slot = slot
+        self.origin = origin
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case direction, text
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = UUID()
-        direction = try c.decode(String.self, forKey: .direction)
-        text = try c.decode(String.self, forKey: .text)
+    var badge: String {
+        switch origin {
+        case .canned: return direction
+        case .enhanced: return "\(direction)·增强"
+        case .added: return "\(direction)·新增"
+        }
     }
 }
 
+private struct AIReplyDraft: Decodable {
+    var direction: String
+    var text: String
+    var action: String?
+    var base: String?
+}
+
 enum SmartReplyGenerator {
-    private static let fallback: [SmartReplySuggestion] = [
-        SmartReplySuggestion(direction: "收到", text: "收到，我看一下。"),
-        SmartReplySuggestion(direction: "确认处理", text: "好的，这个我来处理。"),
-        SmartReplySuggestion(direction: "要信息", text: "方便再补一下具体细节吗？"),
-        SmartReplySuggestion(direction: "稍后回", text: "现在不太方便，稍后回复你。"),
-        SmartReplySuggestion(direction: "约时间", text: "今天方便同步一下吗？"),
+    static let defaults: [SmartReplySuggestion] = [
+        SmartReplySuggestion(direction: "收到", text: "收到，我看一下。", slot: "收到"),
+        SmartReplySuggestion(direction: "确认处理", text: "好的，这个我来处理。", slot: "确认处理"),
+        SmartReplySuggestion(direction: "要信息", text: "方便再补一下具体细节吗？", slot: "要信息"),
+        SmartReplySuggestion(direction: "稍后回", text: "现在不太方便，稍后回复你。", slot: "稍后回"),
+        SmartReplySuggestion(direction: "约时间", text: "今天方便同步一下吗？", slot: "约时间"),
     ]
 
+    private static let defaultSlots: [String] = defaults.compactMap(\.slot)
+
     @MainActor
-    static func generate(from context: WindowContext) async -> (suggestions: [SmartReplySuggestion], note: String?) {
-        guard context.isUseful else {
-            return (fallback, "没读到足够的窗口文字（\(context.source)，\(context.text.count) 字，\(context.appName.isEmpty ? "无目标窗口" : context.appName)）。飞书需屏幕录制才能识别对话。")
+    static func generate(
+        from context: WindowContext,
+        debugDir: URL? = nil,
+        onProgress: ((String) -> Void)? = nil
+    ) async -> (suggestions: [SmartReplySuggestion], note: String?) {
+        guard let screenshotURL = context.screenshotURL,
+              FileManager.default.fileExists(atPath: screenshotURL.path) else {
+            onProgress?("截图失败，不调用 agent")
+            return ([], "截图失败，没有把窗口画面交给模型。默认回复仍可直接用。")
         }
 
         let style = PhraseStore.shared.topPhrases(limit: 5).map(\.text)
         let apiKey = CursorAISummarizer.shared.apiKey
+        let resolved = AgentCLI.resolvedAPIKey(apiKey)
+        if resolved.isEmpty {
+            onProgress?("没有 API Key")
+        } else {
+            onProgress?("API Key 已就绪（末尾 \(resolved.suffix(4))）")
+        }
 
         do {
-            let prompt = buildPrompt(context: context, style: style)
             let workspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
                 .appendingPathComponent("PhraseDeck/ai-workspace", isDirectory: true)
             try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+            let shotInWorkspace = workspace.appendingPathComponent("screenshot.png")
+            try? FileManager.default.removeItem(at: shotInWorkspace)
+            do {
+                try FileManager.default.copyItem(at: screenshotURL, to: shotInWorkspace)
+            } catch {
+                onProgress?("截图文件无法写入工作区，不调用 agent")
+                if let debugDir {
+                    DebugSessionLog.write(debugDir, "error.txt", "copy screenshot failed: \(error)\n")
+                }
+                return ([], "截图无法交给模型。默认回复仍可直接用。")
+            }
+            onProgress?("原图已放入工作区 screenshot.png（\(Int((try? shotInWorkspace.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) / 1024) KB）")
+
+            let prompt = buildPrompt(context: context, style: style, screenshotPath: shotInWorkspace.path)
+            if let debugDir {
+                DebugSessionLog.write(debugDir, "prompt.txt", prompt)
+                DebugSessionLog.write(debugDir, "style.txt", style.isEmpty ? "(none)\n" : style.joined(separator: "\n") + "\n")
+            }
+            onProgress?("Prompt \(prompt.count) 字，原图交给 agent…")
 
             let raw = try await AgentCLI.runAsk(
                 prompt: prompt,
                 apiKey: apiKey,
-                workspace: workspace
+                workspace: workspace,
+                debugDir: debugDir,
+                onProgress: onProgress
             )
-            let data = try AgentCLI.extractJSONArray(from: raw)
-            let decoded = try JSONDecoder().decode([SmartReplySuggestion].self, from: data)
-            let cleaned = decoded.compactMap(sanitize).prefix(6)
-            if cleaned.isEmpty {
-                return (fallback, "模型没有给出可用回复，已用通用方向。")
+            onProgress?("agent 返回 \(raw.count) 字，解析 JSON…")
+            if let debugDir {
+                DebugSessionLog.write(debugDir, "agent-raw.txt", raw)
             }
-            return (Array(cleaned), nil)
+            let data = try AgentCLI.extractJSONArray(from: raw)
+            if let debugDir {
+                DebugSessionLog.write(debugDir, "drafts.json", String(data: data, encoding: .utf8) ?? "")
+            }
+            let drafts = try JSONDecoder().decode([AIReplyDraft].self, from: data)
+            let merged = merge(defaults: defaults, drafts: drafts)
+            let replaced = merged.filter { $0.origin == .enhanced }.count
+            let added = merged.filter { $0.origin == .added }.count
+            onProgress?("合并完成：增强 \(replaced) 条，新增 \(added) 条")
+            if let debugDir {
+                let lines = merged.map { "\($0.origin.rawValue)\t\($0.direction)\t\($0.text)" }.joined(separator: "\n")
+                DebugSessionLog.write(debugDir, "merged.txt", lines + "\n")
+            }
+            if replaced == 0 && added == 0 {
+                return ([], "模型没有给出可合并的回复，默认 5 条保持不变。")
+            }
+            return (merged, nil)
         } catch {
-            return (fallback, "生成失败，已用通用方向：\(error.localizedDescription)")
+            onProgress?("失败：\(error.localizedDescription)")
+            if let debugDir {
+                DebugSessionLog.write(debugDir, "error.txt", error.localizedDescription + "\n")
+            }
+            return ([], "生成失败，默认回复仍可直接用：\(error.localizedDescription)")
         }
     }
 
-    private static func sanitize(_ item: SmartReplySuggestion) -> SmartReplySuggestion? {
-        let direction = item.direction.trimmingCharacters(in: .whitespacesAndNewlines)
-        let text = PhraseMiner.normalize(item.text)
-        guard !direction.isEmpty, (2...240).contains(text.count) else { return nil }
-        return SmartReplySuggestion(direction: String(direction.prefix(12)), text: text)
+    private static func merge(defaults: [SmartReplySuggestion], drafts: [AIReplyDraft]) -> [SmartReplySuggestion] {
+        var merged = defaults
+        var addedCount = 0
+
+        for draft in drafts {
+            let text = PhraseMiner.normalize(draft.text)
+            let direction = draft.direction.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !direction.isEmpty, (2...240).contains(text.count) else { continue }
+
+            let action = (draft.action ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let base = normalizeSlot(draft.base ?? "")
+            let wantsReplace = action == "replace" || action == "enhance" || action == "增强"
+            let slot = base.isEmpty ? normalizeSlot(direction) : base
+
+            if wantsReplace || (!base.isEmpty && defaultSlots.contains(slot)) {
+                if let idx = merged.firstIndex(where: { $0.slot == slot }) {
+                    merged[idx].text = text
+                    merged[idx].direction = String(direction.prefix(12))
+                    merged[idx].origin = .enhanced
+                    continue
+                }
+            }
+
+            guard addedCount < 5 else { continue }
+            merged.append(
+                SmartReplySuggestion(
+                    direction: String(direction.prefix(12)),
+                    text: text,
+                    origin: .added
+                )
+            )
+            addedCount += 1
+        }
+
+        return Array(merged.prefix(10))
     }
 
-    private static func buildPrompt(context: WindowContext, style: [String]) -> String {
+    private static func normalizeSlot(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        for slot in defaultSlots where trimmed == slot || trimmed.contains(slot) {
+            return slot
+        }
+        return trimmed
+    }
+
+    private static func buildPrompt(context: WindowContext, style: [String], screenshotPath: String) -> String {
         var lines: [String] = []
-        lines.append("根据当前窗口里看到的对话，给用户 5 条可直接发送的快捷回复。")
-        lines.append("用户已经决定要回复，不要分析背景，不要复述原文，不要提问。")
-        lines.append("每条必须是不同方向（同意、先确认、要补充信息、委婉拒绝、约时间、收到稍后回等），只保留和上下文相关的方向。")
-        lines.append("每条 1～2 句，口语，可直接粘贴到飞书或 Cursor。")
-        lines.append("只输出 JSON 数组，不要 markdown，不要解释：")
-        lines.append("[{\"direction\":\"同意\",\"text\":\"好的，这个我来处理。\"}]")
+        lines.append("用户已经能看到下面 5 条默认快捷回复，可立刻按数字发送。你只输出增量：增强其中某条，或追加新方向。")
+        lines.append("默认回复（base 必须用这里的原名）：")
+        for item in defaults {
+            lines.append("- base=\(item.slot ?? item.direction)｜\(item.direction)：\(item.text)")
+        }
+        lines.append("规则：")
+        lines.append("1. 用户已经决定要回复，不要分析背景，不要复述原文。")
+        lines.append("2. 若某条默认方向适合当前对话，按语境改写得更贴切：action=replace，base=默认名。")
+        lines.append("3. 若默认里没有的方向（拒绝、致谢、给方案、要文件等），action=append，不要填 base，不要改默认 5 条。")
+        lines.append("4. 默认已经够用的句子不要再输出。每条 1～2 句，可直接粘贴。")
+        lines.append("5. 只输出 JSON 数组，不要 markdown：")
+        lines.append("[{\"direction\":\"收到\",\"text\":\"收到，我这边先看一下文档。\",\"action\":\"replace\",\"base\":\"收到\"},{\"direction\":\"要文件\",\"text\":\"方便把相关文件发我吗？\",\"action\":\"append\"}]")
         if !style.isEmpty {
             lines.append("用户常用语气（可模仿，不要无关照抄）：")
             for s in style {
                 lines.append("- \(s)")
             }
         }
-        lines.append("当前窗口：\(context.appName)（\(context.bundleID)）来源 \(context.source)")
-        lines.append("窗口可见文字：")
-        lines.append(context.text)
+        lines.append("当前窗口：\(context.appName)（\(context.bundleID)）")
+        lines.append("请直接查看这张当前聊天窗口的原图（不要做 OCR、不要只读文件名）：")
+        lines.append(screenshotPath)
+        lines.append("图里的对话内容是唯一依据。")
+        if !context.axText.isEmpty {
+            lines.append("辅助功能文字可能不完整，仅供对照：")
+            lines.append(context.axText)
+        }
         return lines.joined(separator: "\n")
     }
 }

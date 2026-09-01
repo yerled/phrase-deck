@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "请求辅助功能权限", action: #selector(requestAccess), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "请求屏幕录制权限", action: #selector(requestScreen), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "打开智能回复调试日志", action: #selector(openDebugLogs), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "退出 PhraseDeck", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
@@ -109,6 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func requestScreen() {
         PermissionManager.requestScreenRecording()
         PermissionManager.openScreenRecordingSettings()
+    }
+
+    @objc private func openDebugLogs() {
+        DebugSessionLog.openFolder()
     }
 
     @objc private func quit() {

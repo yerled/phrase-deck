@@ -22,6 +22,7 @@
 		A81FC4C4C9E056D3B8727CEC /* AgentCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB70B679C53BCA528E2D44C /* AgentCLI.swift */; };
 		BA2D7936922E494296B9AD07 /* SentMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE7F4399C8128A27031F549 /* SentMessage.swift */; };
 		CC165C121A9C56CBC73A82B9 /* OverlayPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */; };
+		CDCE5B8A50206E8309C7E602 /* DebugSessionLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8157939D204EE28BBE562A /* DebugSessionLog.swift */; };
 		CE1D69882889202306269EDE /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E46125AD46F42313114B3250 /* TextInserter.swift */; };
 		CE50F8BF6C5A08030FC31E3F /* MessageLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8472E4D55C06A5AFE52E8FCE /* MessageLogStore.swift */; };
 		E80D40D01DD3298EDD424199 /* PhraseMiner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */; };
@@ -49,6 +50,7 @@
 		DBB70B679C53BCA528E2D44C /* AgentCLI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCLI.swift; sourceTree = "<group>"; };
 		E46125AD46F42313114B3250 /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
 		EAF3B77D72D56D0D66DFBDEF /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		FE8157939D204EE28BBE562A /* DebugSessionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSessionLog.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -110,6 +112,7 @@
 				9D70695C61C157C02C0A3373 /* AppConst.swift */,
 				6A5FE69F309AF69F4CB70E45 /* AppSendCollector.swift */,
 				58F7EED596740F15B475F384 /* CursorAISummarizer.swift */,
+				FE8157939D204EE28BBE562A /* DebugSessionLog.swift */,
 				47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */,
 				8472E4D55C06A5AFE52E8FCE /* MessageLogStore.swift */,
 				38EB2A7A35E43EC28041A068 /* PermissionManager.swift */,
@@ -208,6 +211,7 @@
 				76EB01BC9D25B12461EDFF18 /* AppConst.swift in Sources */,
 				54544F762726A6377914ACD1 /* AppSendCollector.swift in Sources */,
 				07DC99D57460746666A49D09 /* CursorAISummarizer.swift in Sources */,
+				CDCE5B8A50206E8309C7E602 /* DebugSessionLog.swift in Sources */,
 				605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */,
 				CE50F8BF6C5A08030FC31E3F /* MessageLogStore.swift in Sources */,
 				CC165C121A9C56CBC73A82B9 /* OverlayPanelController.swift in Sources */,
@@ -242,7 +246,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit -framework Vision";
+				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;
@@ -264,7 +268,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit -framework Vision";
+				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;

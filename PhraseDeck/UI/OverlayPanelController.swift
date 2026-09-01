@@ -16,11 +16,15 @@ final class OverlayPanelController: NSObject, ObservableObject {
     @Published private(set) var smartStatus: String = ""
     @Published private(set) var smartSuggestions: [SmartReplySuggestion] = []
     @Published private(set) var smartNote: String?
+    @Published private(set) var debugLog: [String] = []
 
     private var panel: NSPanel?
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
     private var generation = 0
+    private var elapsedTimer: Timer?
+    private var smartStartedAt: Date?
+    private var relayoutWork: DispatchWorkItem?
 
     /// Snapshot readable from the CGEvent tap thread.
     nonisolated(unsafe) private var activeTexts: [String] = []
@@ -47,6 +51,8 @@ final class OverlayPanelController: NSObject, ObservableObject {
         smartSuggestions = []
         smartNote = nil
         smartStatus = ""
+        debugLog = []
+        stopElapsed()
         presentPanel()
     }
 
@@ -60,25 +66,62 @@ final class OverlayPanelController: NSObject, ObservableObject {
 
         presentation = .smartReply
         phrases = []
-        smartSuggestions = []
+        smartSuggestions = SmartReplyGenerator.defaults
         smartNote = nil
+        debugLog = []
         smartStatus = "正在读取当前窗口…"
         presentPanel()
+        syncActiveTexts()
+        let debugDir = DebugSessionLog.begin()
+        appendDebug("完整日志：\(debugDir.path)")
+        appendDebug("也可打开菜单「打开智能回复调试日志」")
+        if let target {
+            appendDebug("目标窗口：\(target.localizedName ?? "?")  \(target.bundleIdentifier ?? "")")
+        } else {
+            appendDebug("没有找到前台飞书/Cursor 窗口")
+        }
+        startElapsed(status: "正在读取当前窗口")
 
         Task { @MainActor in
             guard token == generation else { return }
-            let context = await WindowContextCapture.capture(app: target)
+            let context = await WindowContextCapture.capture(app: target, debugDir: debugDir) { [weak self] line in
+                DispatchQueue.main.async { self?.appendDebug(line) }
+            }
             guard token == generation else { return }
-            smartStatus = context.isUseful ? "正在生成回复方向…" : "窗口文字不足，正在准备通用回复…"
-            relayout()
+            if let frame = context.windowFrame {
+                let desc = String(format: "%.0f×%.0f @ (%.0f, %.0f)", frame.width, frame.height, frame.origin.x, frame.origin.y)
+                appendDebug("窗口区域 \(desc)")
+            }
+            if let pixels = context.screenshotPixels {
+                appendDebug("截图像素 \(Int(pixels.width))×\(Int(pixels.height))，原图 screenshot.png")
+            }
+            if context.hasScreenshot {
+                appendDebug("上下文 \(context.source)，AX \(context.axText.count) 字，已跳过 OCR，原图交给 agent")
+                startElapsed(status: "正在调用 Cursor Agent")
+            } else {
+                appendDebug("上下文 \(context.source)，截图失败，不调用 agent")
+                startElapsed(status: "截图失败，保留默认回复")
+            }
 
-            let result = await SmartReplyGenerator.generate(from: context)
+            let result = await SmartReplyGenerator.generate(from: context, debugDir: debugDir) { [weak self] line in
+                DispatchQueue.main.async { self?.appendDebug(line) }
+            }
             guard token == generation else { return }
-            smartSuggestions = result.suggestions
+            stopElapsed()
+            if !result.suggestions.isEmpty {
+                smartSuggestions = result.suggestions
+            }
             smartNote = result.note
             smartStatus = ""
+            if let note = result.note, !note.isEmpty {
+                appendDebug(note)
+            } else {
+                let enhanced = smartSuggestions.filter { $0.origin == .enhanced }.count
+                let added = smartSuggestions.filter { $0.origin == .added }.count
+                appendDebug("完成：增强 \(enhanced) 条，新增 \(added) 条，共 \(smartSuggestions.count) 条")
+            }
             syncActiveTexts()
-            relayout()
+            scheduleRelayout()
         }
     }
 
@@ -91,12 +134,17 @@ final class OverlayPanelController: NSObject, ObservableObject {
         smartSuggestions = []
         smartNote = nil
         smartStatus = ""
+        debugLog = []
+        stopElapsed()
+        relayoutWork?.cancel()
+        relayoutWork = nil
     }
 
     private func presentPanel() {
         if panel == nil {
             let hosting = NSHostingView(rootView: OverlayView(controller: self))
-            hosting.frame = NSRect(x: 0, y: 0, width: 440, height: estimatedHeight)
+            hosting.sizingOptions = [.intrinsicContentSize]
+            hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: estimatedHeight)
 
             let panel = NSPanel(
                 contentRect: hosting.frame,
@@ -111,8 +159,9 @@ final class OverlayPanelController: NSObject, ObservableObject {
             panel.backgroundColor = .clear
             panel.hasShadow = false
             panel.hidesOnDeactivate = false
+            panel.animationBehavior = .none
             panel.contentView = hosting
-            panel.isMovableByWindowBackground = true
+            panel.isMovableByWindowBackground = false
             self.panel = panel
             installKeyTap()
         } else {
@@ -153,29 +202,85 @@ final class OverlayPanelController: NSObject, ObservableObject {
         }
     }
 
+    func appendDebug(_ message: String) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.appendDebug(message)
+            }
+            return
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        let line = "[\(formatter.string(from: Date()))] \(message)"
+        debugLog.append(line)
+        if debugLog.count > 40 {
+            debugLog.removeFirst(debugLog.count - 40)
+        }
+        NSLog("PhraseDeck \(message)")
+        if let dir = DebugSessionLog.currentDirectory {
+            DebugSessionLog.append(dir, "overlay.log", line + "\n")
+        }
+        scheduleRelayout()
+    }
+
+    private func startElapsed(status: String) {
+        stopElapsed()
+        smartStartedAt = Date()
+        smartStatus = "\(status)…"
+        elapsedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let started = self.smartStartedAt else { return }
+                let seconds = Int(Date().timeIntervalSince(started))
+                self.smartStatus = "\(status)… \(seconds)s"
+            }
+        }
+    }
+
+    private func stopElapsed() {
+        elapsedTimer?.invalidate()
+        elapsedTimer = nil
+        smartStartedAt = nil
+    }
+
+    private var panelWidth: CGFloat {
+        presentation == .smartReply ? 520 : 440
+    }
+
     private var estimatedHeight: CGFloat {
         switch presentation {
         case .phrases:
             if phrases.isEmpty { return 120 }
             return 52 + 16 + CGFloat(phrases.count) * 48
         case .smartReply:
+            let logH = min(168, 28 + CGFloat(debugLog.count) * 15)
             if !smartSuggestions.isEmpty {
-                let note = smartNote == nil ? 0 : 28
-                return 52 + 16 + CGFloat(note) + CGFloat(smartSuggestions.count) * 64
+                let note = smartNote == nil ? 0 : 36
+                return 52 + 16 + CGFloat(note) + CGFloat(smartSuggestions.count) * 64 + logH
             }
-            return 150
+            return 70 + 48 + logH
         }
     }
 
+    private func scheduleRelayout() {
+        relayoutWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            DispatchQueue.main.async { self?.relayout() }
+        }
+        relayoutWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: work)
+    }
+
     private func relayout() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.relayout() }
+            return
+        }
         guard let panel else { return }
-        let size = NSSize(width: 440, height: estimatedHeight)
-        panel.contentView?.frame.size = size
-        var frame = panel.frame
-        let dy = size.height - frame.size.height
-        frame.origin.y -= dy
-        frame.size = size
-        panel.setFrame(frame, display: true)
+        let size = NSSize(width: panelWidth, height: estimatedHeight)
+        NSAnimationContext.beginGrouping()
+        NSAnimationContext.current.duration = 0
+        panel.setContentSize(size)
+        NSAnimationContext.endGrouping()
         positionNearMouse(panel)
     }
 

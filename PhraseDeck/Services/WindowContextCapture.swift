@@ -2,25 +2,17 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 import ScreenCaptureKit
-import Vision
 
 struct WindowContext {
     var appName: String
     var bundleID: String
-    var text: String
     var source: String
+    var axText: String = ""
+    var windowFrame: CGRect?
+    var screenshotPixels: CGSize?
+    var screenshotURL: URL?
 
-    var isUseful: Bool {
-        Self.isUseful(text)
-    }
-
-    static func isUseful(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let alnum = trimmed.unicodeScalars.filter {
-            CharacterSet.alphanumerics.contains($0) || (0x4E00...0x9FFF).contains($0.value)
-        }
-        return alnum.count >= 8
-    }
+    var hasScreenshot: Bool { screenshotURL != nil }
 }
 
 enum WindowContextCapture {
@@ -42,53 +34,99 @@ enum WindowContextCapture {
     }
 
     @MainActor
-    static func capture(app: NSRunningApplication?) async -> WindowContext {
+    static func capture(
+        app: NSRunningApplication?,
+        debugDir: URL? = nil,
+        onProgress: ((String) -> Void)? = nil
+    ) async -> WindowContext {
         guard let app,
               let bundleID = app.bundleIdentifier,
               bundleID != Bundle.main.bundleIdentifier else {
-            return WindowContext(appName: "", bundleID: "", text: "", source: "none")
+            onProgress?("没有可用的目标 App")
+            return WindowContext(appName: "", bundleID: "", source: "none")
         }
 
         let pid = app.processIdentifier
         let appName = app.localizedName ?? bundleID
-        let axText = readAXText(pid: pid)
+        onProgress?("读取辅助功能文本…")
+        let ax = readAXText(pid: pid)
+        let axText = ax.text
+        onProgress?("辅助功能：\(axText.count) 字（仅作补充，不替代截图）")
 
-        var text = axText
         var source = axText.isEmpty ? "none" : "ax"
+        var windowFrame = ax.windowFrame
+        var screenshotPixels: CGSize?
+        var screenshotURL: URL?
+        var shotNote = "未截图"
 
-        if !WindowContext.isUseful(axText) {
-            if !PermissionManager.hasScreenRecording {
-                PermissionManager.requestScreenRecording()
-            }
-            if let image = await screenshotWindow(pid: pid) {
-                let ocrText = await Task.detached(priority: .userInitiated) {
-                    ocr(image)
-                }.value
-                if ocrText.count > text.count {
-                    text = ocrText
-                    source = axText.isEmpty ? "ocr" : "ax+ocr"
-                } else if !ocrText.isEmpty {
-                    source += "+ocr-weak"
-                } else {
-                    source += "+ocr-empty"
+        if !PermissionManager.hasScreenRecording {
+            onProgress?("尚未授权屏幕录制，正在请求…")
+            PermissionManager.requestScreenRecording()
+        }
+        onProgress?("截取窗口原图…")
+        if let shot = await screenshotWindow(pid: pid) {
+            windowFrame = shot.frame
+            screenshotPixels = CGSize(width: shot.image.width, height: shot.image.height)
+            shotNote = "\(shot.method) \(shot.image.width)×\(shot.image.height)px  窗口 \(fmt(shot.frame))  标题 \(shot.title)"
+            onProgress?("截图窗口 \(fmt(shot.frame))，像素 \(shot.image.width)×\(shot.image.height)")
+            source = axText.isEmpty ? "screenshot" : "ax+screenshot"
+            if let debugDir {
+                DebugSessionLog.write(debugDir, "sck-windows.txt", shot.candidates)
+                if let url = DebugSessionLog.writeImage(debugDir, "screenshot.png", shot.image) {
+                    screenshotURL = url
                 }
-            } else {
-                source += "+shot-fail"
             }
+            if screenshotURL == nil {
+                screenshotURL = DebugSessionLog.writeCapturePNG(shot.image)
+            }
+            if screenshotURL == nil {
+                source += "+png-write-fail"
+                shotNote += "（PNG 写入失败）"
+                onProgress?("截图已拍到，但 PNG 写入失败")
+            }
+        } else {
+            source += "+shot-fail"
+            shotNote = "截图失败"
+            onProgress?("截图失败，不调用 agent")
         }
 
-        if text.count > maxChars {
-            text = String(text.suffix(maxChars))
+        if let debugDir {
+            DebugSessionLog.write(debugDir, "ax.txt", axText.isEmpty ? "(empty)\n" : axText)
+            var summary: [String] = []
+            summary.append("app: \(appName)")
+            summary.append("bundle: \(bundleID)")
+            summary.append("pid: \(pid)")
+            summary.append("source: \(source)")
+            summary.append("ax_window: \(ax.windowFrame.map(fmt) ?? "none")")
+            summary.append("ax_chars: \(axText.count)")
+            summary.append("shot: \(shotNote)")
+            summary.append("screenshot_url: \(screenshotURL?.path ?? "none")")
+            summary.append("call_agent: \(screenshotURL == nil ? "no" : "yes")")
+            DebugSessionLog.write(debugDir, "summary.txt", summary.joined(separator: "\n") + "\n")
         }
-        NSLog("PhraseDeck context app=\(appName) source=\(source) chars=\(text.count)")
-        return WindowContext(appName: appName, bundleID: bundleID, text: text, source: source)
+
+        NSLog("PhraseDeck context app=\(appName) source=\(source) shot=\(screenshotURL != nil)")
+        return WindowContext(
+            appName: appName,
+            bundleID: bundleID,
+            source: source,
+            axText: String(axText.suffix(maxChars)),
+            windowFrame: windowFrame,
+            screenshotPixels: screenshotPixels,
+            screenshotURL: screenshotURL
+        )
+    }
+
+    private static func fmt(_ rect: CGRect) -> String {
+        String(format: "%.0f×%.0f @ (%.0f, %.0f)", rect.width, rect.height, rect.origin.x, rect.origin.y)
     }
 
     // MARK: - Accessibility
 
-    private static func readAXText(pid: pid_t) -> String {
+    private static func readAXText(pid: pid_t) -> (text: String, windowFrame: CGRect?) {
         var chunks: [String] = []
         var seen = Set<String>()
+        var windowFrame: CGRect?
 
         func append(_ raw: String?) {
             guard let raw else { return }
@@ -125,15 +163,26 @@ enum WindowContextCapture {
             }
         }
 
-        if !WindowContext.isUseful(chunks.joined(separator: "\n")), let window = focusedWindow(pid: pid) {
-            var items: [(y: CGFloat, text: String)] = []
-            var visited = 0
-            collect(window, items: &items, seen: &seen, visited: &visited)
-            items.sort { $0.y > $1.y }
-            chunks.append(contentsOf: items.map(\.text))
+        if let window = focusedWindow(pid: pid) {
+            windowFrame = axFrame(window)
+            if !axLooksUseful(chunks.joined(separator: "\n")) {
+                var items: [(y: CGFloat, text: String)] = []
+                var visited = 0
+                collect(window, items: &items, seen: &seen, visited: &visited)
+                items.sort { $0.y > $1.y }
+                chunks.append(contentsOf: items.map(\.text))
+            }
         }
 
-        return chunks.joined(separator: "\n")
+        return (chunks.joined(separator: "\n"), windowFrame)
+    }
+
+    private static func axLooksUseful(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let alnum = trimmed.unicodeScalars.filter {
+            CharacterSet.alphanumerics.contains($0) || (0x4E00...0x9FFF).contains($0.value)
+        }
+        return alnum.count >= 8
     }
 
     private static func focusedWindow(pid: pid_t) -> AXUIElement? {
@@ -242,25 +291,39 @@ enum WindowContextCapture {
 
     // MARK: - Screenshot / OCR
 
-    private static func screenshotWindow(pid: pid_t) async -> CGImage? {
+    private struct WindowShot {
+        var image: CGImage
+        var frame: CGRect
+        var method: String
+        var title: String
+        var candidates: String
+    }
+
+    private static func screenshotWindow(pid: pid_t) async -> WindowShot? {
         if #available(macOS 14.0, *) {
-            if let image = await screenshotWithSCK(pid: pid) {
-                return image
+            if let shot = await screenshotWithSCK(pid: pid) {
+                return shot
             }
         }
         return screenshotLegacy(pid: pid)
     }
 
     @available(macOS 14.0, *)
-    private static func screenshotWithSCK(pid: pid_t) async -> CGImage? {
+    private static func screenshotWithSCK(pid: pid_t) async -> WindowShot? {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            let windows = content.windows.filter { window in
-                window.owningApplication?.processID == pid
-                    && window.isOnScreen
+            let allForPid = content.windows.filter { $0.owningApplication?.processID == pid }
+            let windows = allForPid.filter { window in
+                window.isOnScreen
                     && window.frame.width >= 200
                     && window.frame.height >= 200
             }
+            let candidateLines = allForPid.map { window in
+                let on = window.isOnScreen ? "on" : "off"
+                return "- [\(on)] \(fmt(window.frame))  \(window.title ?? "(no title)")"
+            }
+            let candidates = "SCK windows for pid \(pid):\n" + (candidateLines.isEmpty ? "(none)\n" : candidateLines.joined(separator: "\n") + "\n")
+
             guard let window = windows.max(by: {
                 $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height
             }) else {
@@ -278,14 +341,20 @@ enum WindowContextCapture {
 
             let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
             NSLog("PhraseDeck SCK shot \(image.width)x\(image.height)")
-            return image
+            return WindowShot(
+                image: image,
+                frame: window.frame,
+                method: "sck",
+                title: window.title ?? "(no title)",
+                candidates: candidates + "picked: \(fmt(window.frame)) \(window.title ?? "")\n"
+            )
         } catch {
             NSLog("PhraseDeck SCK capture failed: \(error)")
             return nil
         }
     }
 
-    private static func screenshotLegacy(pid: pid_t) -> CGImage? {
+    private static func screenshotLegacy(pid: pid_t) -> WindowShot? {
         guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }
@@ -294,20 +363,39 @@ enum WindowContextCapture {
                 && (info[kCGWindowLayer as String] as? Int) == 0
                 && (info[kCGWindowAlpha as String] as? Double ?? 1) > 0.05
         }
-        func area(_ info: [String: Any]) -> CGFloat {
-            guard let bounds = info[kCGWindowBounds as String] as? [String: Any] else { return 0 }
-            let w = bounds["Width"] as? CGFloat ?? CGFloat(bounds["Width"] as? Int ?? 0)
-            let h = bounds["Height"] as? CGFloat ?? CGFloat(bounds["Height"] as? Int ?? 0)
-            return w * h
+        func bounds(_ info: [String: Any]) -> CGRect {
+            guard let dict = info[kCGWindowBounds as String] as? [String: Any] else { return .zero }
+            let x = dict["X"] as? CGFloat ?? CGFloat(dict["X"] as? Int ?? 0)
+            let y = dict["Y"] as? CGFloat ?? CGFloat(dict["Y"] as? Int ?? 0)
+            let w = dict["Width"] as? CGFloat ?? CGFloat(dict["Width"] as? Int ?? 0)
+            let h = dict["Height"] as? CGFloat ?? CGFloat(dict["Height"] as? Int ?? 0)
+            return CGRect(x: x, y: y, width: w, height: h)
         }
+        func area(_ info: [String: Any]) -> CGFloat {
+            let r = bounds(info)
+            return r.width * r.height
+        }
+        let candidates = windows.map { info in
+            let name = info[kCGWindowName as String] as? String ?? "(no title)"
+            return "- \(fmt(bounds(info)))  \(name)"
+        }.joined(separator: "\n")
         guard let best = windows.max(by: { area($0) < area($1) }),
-              let windowID = windowID(best) else { return nil }
+              let windowID = windowID(best),
+              let image = CGWindowListCreateImage(
+                .null,
+                .optionIncludingWindow,
+                windowID,
+                [.boundsIgnoreFraming, .bestResolution]
+              ) else { return nil }
 
-        return CGWindowListCreateImage(
-            .null,
-            .optionIncludingWindow,
-            windowID,
-            [.boundsIgnoreFraming, .bestResolution]
+        let frame = bounds(best)
+        let title = best[kCGWindowName as String] as? String ?? "(no title)"
+        return WindowShot(
+            image: image,
+            frame: frame,
+            method: "legacy",
+            title: title,
+            candidates: "legacy windows for pid \(pid):\n\(candidates)\npicked: \(fmt(frame)) \(title)\n"
         )
     }
 
@@ -322,64 +410,5 @@ enum WindowContextCapture {
         if let v = info[kCGWindowNumber as String] as? Int { return CGWindowID(v) }
         if let v = info[kCGWindowNumber as String] as? UInt32 { return v }
         return nil
-    }
-
-    nonisolated private static func ocr(_ image: CGImage) -> String {
-        let scaled = scaleForOCR(image)
-        if let text = runOCR(scaled, level: .accurate, languages: ["zh-Hans", "zh-Hant", "en-US"]),
-           WindowContext.isUseful(text) {
-            return text
-        }
-        if let text = runOCR(scaled, level: .accurate, languages: nil), !text.isEmpty {
-            return text
-        }
-        return runOCR(scaled, level: .fast, languages: nil) ?? ""
-    }
-
-    nonisolated private static func scaleForOCR(_ image: CGImage) -> CGImage {
-        let maxSide = 1600
-        let width = image.width
-        let height = image.height
-        let longest = max(width, height)
-        guard longest > maxSide else { return image }
-        let scale = CGFloat(maxSide) / CGFloat(longest)
-        let newW = Int(CGFloat(width) * scale)
-        let newH = Int(CGFloat(height) * scale)
-        guard let ctx = CGContext(
-            data: nil,
-            width: newW,
-            height: newH,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return image }
-        ctx.interpolationQuality = .high
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: newW, height: newH))
-        return ctx.makeImage() ?? image
-    }
-
-    nonisolated private static func runOCR(_ image: CGImage, level: VNRequestTextRecognitionLevel, languages: [String]?) -> String? {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = level
-        request.usesLanguageCorrection = false
-        if let languages {
-            request.recognitionLanguages = languages
-        }
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        do {
-            try handler.perform([request])
-        } catch {
-            NSLog("PhraseDeck OCR failed: \(error)")
-            return nil
-        }
-        let lines = (request.results ?? []).compactMap { observation -> String? in
-            guard let text = observation.topCandidates(1).first?.string else { return nil }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.count >= 2 ? trimmed : nil
-        }
-        var seen = Set<String>()
-        let joined = lines.filter { seen.insert($0).inserted }.joined(separator: "\n")
-        return joined.isEmpty ? nil : joined
     }
 }

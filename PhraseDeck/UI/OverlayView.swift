@@ -10,7 +10,7 @@ struct OverlayView: View {
             glassDivider
             content
         }
-        .frame(width: 440)
+        .frame(width: controller.presentation == .smartReply ? 520 : 440)
         .background(GlassBackground())
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
@@ -55,39 +55,65 @@ struct OverlayView: View {
                 .padding(.vertical, 8)
             }
         case .smartReply:
-            if !controller.smartStatus.isEmpty, controller.smartSuggestions.isEmpty {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text(controller.smartStatus)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.primary.opacity(0.7))
-                }
-                .padding(18)
-            } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    if let note = controller.smartNote, !note.isEmpty {
-                        Text(note)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.primary.opacity(0.5))
-                            .padding(.horizontal, 10)
-                            .padding(.top, 8)
+            VStack(alignment: .leading, spacing: 8) {
+                if !controller.smartStatus.isEmpty {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text(controller.smartStatus)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.primary.opacity(0.7))
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                }
+
+                if let note = controller.smartNote, !note.isEmpty, !controller.smartSuggestions.isEmpty {
+                    Text(note)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.primary.opacity(0.5))
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                }
+
+                if !controller.smartSuggestions.isEmpty {
                     VStack(spacing: 2) {
                         ForEach(Array(controller.smartSuggestions.enumerated()), id: \.element.id) { index, item in
                             OverlayRow(
                                 index: index,
                                 title: item.text,
-                                badge: item.direction,
+                                badge: item.badge,
                                 onSelect: { controller.selectSuggestion(item) }
                             )
                         }
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
+
+                debugConsole
             }
         }
+    }
+
+    private var debugConsole: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(controller.debugLog.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.primary.opacity(0.72))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(10)
+        }
+        .frame(maxHeight: 168)
+        .background(Color.primary.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
     }
 
     private var header: some View {
@@ -98,7 +124,7 @@ struct OverlayView: View {
             Text(controller.presentation == .smartReply ? "智能回复" : "PhraseDeck")
                 .font(.system(size: 14, weight: .semibold))
             Spacer()
-            Text(controller.presentation == .smartReply ? "连按三次 ⌘ · 1–6 插入 · Esc" : "连按两次 ⌘ · 1–0 插入 · Esc")
+            Text(controller.presentation == .smartReply ? "连按三次 ⌘ · 数字插入 · Esc" : "连按两次 ⌘ · 1–0 插入 · Esc")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.primary.opacity(0.55))
         }
