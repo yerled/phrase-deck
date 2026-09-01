@@ -56,13 +56,14 @@ enum SmartReplyGenerator {
 
     @MainActor
     static func generate(
-        from context: WindowContext,
+        from context: ChatContext,
         debugDir: URL? = nil,
         onProgress: ((String) -> Void)? = nil
     ) async -> (suggestions: [SmartReplySuggestion], note: String?) {
         guard context.isUseful else {
-            onProgress?("OCR 文字不足，不调用 agent")
-            return ([], "没读到足够的框选文字（\(context.source)，\(context.ocrText.count) 字）。默认回复仍可直接用。")
+            onProgress?("没有聊天原文，不调用 agent")
+            let fallback = context.note ?? "无法获取到聊天文本。"
+            return ([], fallback + " 默认回复仍可直接用。")
         }
 
         let style = PhraseStore.shared.topPhrases(limit: 5).map(\.text)
@@ -80,7 +81,7 @@ enum SmartReplyGenerator {
                 DebugSessionLog.write(debugDir, "prompt.txt", prompt)
                 DebugSessionLog.write(debugDir, "style.txt", style.isEmpty ? "(none)\n" : style.joined(separator: "\n") + "\n")
             }
-            onProgress?("Prompt \(prompt.count) 字，OCR 文本交给 agent…")
+            onProgress?("Prompt \(prompt.count) 字，聊天原文交给 agent…")
             let workspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
                 .appendingPathComponent("PhraseDeck/ai-workspace", isDirectory: true)
             try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
@@ -167,7 +168,7 @@ enum SmartReplyGenerator {
         return trimmed
     }
 
-    private static func buildPrompt(context: WindowContext, style: [String]) -> String {
+    private static func buildPrompt(context: ChatContext, style: [String]) -> String {
         var lines: [String] = []
         lines.append("用户已经能看到下面 5 条默认快捷回复，可立刻按数字发送。你只输出增量：增强其中某条，或追加新方向。")
         lines.append("默认回复（base 必须用这里的原名）：")
@@ -188,10 +189,14 @@ enum SmartReplyGenerator {
             }
         }
         if !context.appName.isEmpty || !context.bundleID.isEmpty {
-            lines.append("当前窗口：\(context.appName)（\(context.bundleID)）")
+            var window = "当前窗口：\(context.appName)（\(context.bundleID)）来源 \(context.source)"
+            if let title = context.title, !title.isEmpty {
+                window += " 会话 \(title)"
+            }
+            lines.append(window)
         }
-        lines.append("用户框选区域 OCR 出的文字：")
-        lines.append(context.ocrText)
+        lines.append("当前聊天原文：")
+        lines.append(context.text)
         return lines.joined(separator: "\n")
     }
 }

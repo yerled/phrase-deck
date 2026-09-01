@@ -12,6 +12,7 @@ macOS 菜单栏工具：从飞书 / Cursor 的发送内容学习常用短语，*
 | AI 全量总结 | `CursorAISummarizer`：默认每 30 分钟；启动约 45s 后也会跑一次。输入为**当前短语库 + 全部发送日志**，输出替换整个短语库；只保留工作/生活可复用短句，丢弃一次性和无意义内容。失败则本地 `PhraseMiner` 提炼（不替换现有库） |
 | 唤起浮层 | `HotKeyManager`：约 0.4s 内连按两次 ⌘（左右均可；中间按了别的键不算） |
 | 选择并插入 | 浮层 Top10（按 `score`）；`1–9` / `0` 或点击；`Esc` 关闭；`TextInserter` 模拟 ⌘V |
+| 智能回复 | 连按三次 ⌘。识别前台 App，按 `ChatContextProviding` 取当前聊天原文；Cursor 读本地 Composer，其它 App（含飞书）走通用「无法获取」 |
 | 设置与菜单 | 开关采集 / AI、API Key、手动添加、删改、清空；菜单含「立即 AI 总结」 |
 
 分数：`score = count × 0.7 + 近因衰减 × 3`（近因半衰期约 7 天）。
@@ -31,12 +32,12 @@ macOS 菜单栏工具：从飞书 / Cursor 的发送内容学习常用短语，*
 
 ```bash
 make dev      # Debug 编译并重启（日常改代码用这个）
-make logs     # 看 NSLog（智能回复采词、OCR 失败原因）
+make logs     # 看 NSLog
 make open     # 打开 Xcode，⌘R 运行，断点/控制台更完整
 make package  # 只在要分发/装到 dist 时才打 Release 包
 ```
 
-`make dev` 和 Xcode 跑的是同一个 Bundle ID，辅助功能 / 屏幕录制授权会保留。
+`make dev` 和 Xcode 跑的是同一个 Bundle ID，辅助功能授权会保留。
 
 首次：
 
@@ -72,9 +73,16 @@ AppSendCollector ──► MessageLogStore ──► CursorAISummarizer
        │                    └──────────────┤
 手动添加 ──────────────────► PhraseStore (.manual) ┘
                                       │ topPhrases(10)
-HotKeyManager（双击 ⌘）──► OverlayPanelController
-                                   │
-                             TextInserter (⌘V)
+HotKeyManager（双击 ⌘）──► OverlayPanelController ──► PhraseStore
+HotKeyManager（三击 ⌘）──► ChatContextResolver
+                              ├ CursorChatContextProvider（本地 Composer）
+                              └ 未实现的 App → 无法获取聊天文本
+                                         │
+                                   SmartReplyGenerator ──► AgentCLI
+                                         │
+                                   OverlayPanelController
+                                         │
+                                   TextInserter (⌘V)
 ```
 
 ## 路线图

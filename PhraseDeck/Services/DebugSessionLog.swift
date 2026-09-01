@@ -1,7 +1,5 @@
 import AppKit
 import Foundation
-import ImageIO
-import UniformTypeIdentifiers
 
 /// Per-run dump of smart-reply capture / prompt / agent I/O.
 /// Overlay only shows summaries; inspect files in `~/Library/Application Support/PhraseDeck/debug/`.
@@ -54,35 +52,6 @@ enum DebugSessionLog {
             }
             mirrorToLatestUnlocked(name, from: dir)
         }
-    }
-
-    @discardableResult
-    static func writeImage(_ dir: URL, _ name: String, _ image: CGImage) -> URL? {
-        io.sync {
-            let url = dir.appendingPathComponent(name)
-            guard writePNGUnlocked(image, to: url) else { return nil }
-            mirrorToLatestUnlocked(name, from: dir)
-            return url
-        }
-    }
-
-    static func writeCapturePNG(_ image: CGImage) -> URL? {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("PhraseDeck/capture", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = dir.appendingPathComponent("screenshot.png")
-        return io.sync {
-            writePNGUnlocked(image, to: url) ? url : nil
-        }
-    }
-
-    private static func writePNGUnlocked(_ image: CGImage, to url: URL) -> Bool {
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
-            return false
-        }
-        CGImageDestinationAddImage(dest, image, nil)
-        return CGImageDestinationFinalize(dest)
     }
 
     static func openFolder() {

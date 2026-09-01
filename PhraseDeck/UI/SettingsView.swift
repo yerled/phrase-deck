@@ -7,7 +7,6 @@ struct SettingsView: View {
     @ObservedObject private var ai = CursorAISummarizer.shared
     @State private var draft = ""
     @State private var accessibilityOK = PermissionManager.hasAccessibility
-    @State private var screenOK = PermissionManager.hasScreenRecording
 
     var body: some View {
         ScrollView {
@@ -38,21 +37,8 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        HStack {
-                            Image(systemName: screenOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                                .foregroundStyle(screenOK ? .green : .orange)
-                            Text(screenOK ? "屏幕录制已授权" : "智能回复兜底需要屏幕录制（识别窗口文字）")
-                            Spacer()
-                            if !screenOK {
-                                Button("去授权") {
-                                    PermissionManager.requestScreenRecording()
-                                    PermissionManager.openScreenRecordingSettings()
-                                }
-                            }
-                        }
                         Button("刷新权限") {
                             accessibilityOK = PermissionManager.hasAccessibility
-                            screenOK = PermissionManager.hasScreenRecording
                         }
                     }
                     .padding(4)
@@ -171,7 +157,6 @@ struct SettingsView: View {
         .frame(width: 580, height: 720)
         .onAppear {
             accessibilityOK = PermissionManager.hasAccessibility
-            screenOK = PermissionManager.hasScreenRecording
         }
     }
 }

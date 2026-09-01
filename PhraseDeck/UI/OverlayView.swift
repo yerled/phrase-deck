@@ -124,7 +124,7 @@ struct OverlayView: View {
             Text(controller.presentation == .smartReply ? "智能回复" : "PhraseDeck")
                 .font(.system(size: 14, weight: .semibold))
             Spacer()
-            Text(controller.presentation == .smartReply ? "框选区域 · 数字插入 · Esc" : "连按两次 ⌘ · 1–0 插入 · Esc")
+            Text(controller.presentation == .smartReply ? "连按三次 ⌘ · 数字插入 · Esc" : "连按两次 ⌘ · 1–0 插入 · Esc")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.primary.opacity(0.55))
         }

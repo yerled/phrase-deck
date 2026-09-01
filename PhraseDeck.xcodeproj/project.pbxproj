@@ -13,11 +13,12 @@
 		240F4F08ED2F464F03406F6C /* PhraseDeckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5859E2DF0AEB37563356ABB /* PhraseDeckApp.swift */; };
 		46F8210C0FB28C34A2EE8D24 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A081FC13F508543C3CEAE76C /* Assets.xcassets */; };
 		54544F762726A6377914ACD1 /* AppSendCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5FE69F309AF69F4CB70E45 /* AppSendCollector.swift */; };
+		5DC0DCFDB9597097C1ECE9AF /* ChatContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC35E27D220051F98CBC583 /* ChatContext.swift */; };
 		5FD6A84B353CF5016F6E5C6F /* Phrase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387391FB6E04520EDEF1031C /* Phrase.swift */; };
 		605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */; };
+		62F1F9DF2F0A0502D220AFF2 /* CursorChatContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99132B91EE9C3AF09E50656B /* CursorChatContextProvider.swift */; };
 		76EB01BC9D25B12461EDFF18 /* AppConst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D70695C61C157C02C0A3373 /* AppConst.swift */; };
 		86DCD8877A27EC74C7A7B2F2 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38EB2A7A35E43EC28041A068 /* PermissionManager.swift */; };
-		A3D9BF454AB79D3843072652 /* WindowContextCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE159DB96B792EAA34FC183B /* WindowContextCapture.swift */; };
 		A3F66295064BA52AB4F350DE /* OverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */; };
 		A81FC4C4C9E056D3B8727CEC /* AgentCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB70B679C53BCA528E2D44C /* AgentCLI.swift */; };
 		BA2D7936922E494296B9AD07 /* SentMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE7F4399C8128A27031F549 /* SentMessage.swift */; };
@@ -27,10 +28,12 @@
 		CE50F8BF6C5A08030FC31E3F /* MessageLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8472E4D55C06A5AFE52E8FCE /* MessageLogStore.swift */; };
 		E80D40D01DD3298EDD424199 /* PhraseMiner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */; };
 		F2D32719EFF15F11920CD25F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF3B77D72D56D0D66DFBDEF /* SettingsView.swift */; };
+		FADB4DAA0151F674EE65731F /* ReadOnlySQLite.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC6954BB353565169E3457E0 /* ReadOnlySQLite.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0BA6CDCFEC9ECBD3F907737F /* OverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayView.swift; sourceTree = "<group>"; };
+		0FC35E27D220051F98CBC583 /* ChatContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatContext.swift; sourceTree = "<group>"; };
 		2D693B4E5A4375A35A5AA860 /* OverlayPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayPanelController.swift; sourceTree = "<group>"; };
 		387391FB6E04520EDEF1031C /* Phrase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phrase.swift; sourceTree = "<group>"; };
 		38EB2A7A35E43EC28041A068 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
@@ -39,12 +42,13 @@
 		6A5FE69F309AF69F4CB70E45 /* AppSendCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSendCollector.swift; sourceTree = "<group>"; };
 		743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseMiner.swift; sourceTree = "<group>"; };
 		8472E4D55C06A5AFE52E8FCE /* MessageLogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageLogStore.swift; sourceTree = "<group>"; };
+		99132B91EE9C3AF09E50656B /* CursorChatContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorChatContextProvider.swift; sourceTree = "<group>"; };
 		9D70695C61C157C02C0A3373 /* AppConst.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConst.swift; sourceTree = "<group>"; };
 		9F77B0E8317F28DCB296A47E /* PhraseStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseStore.swift; sourceTree = "<group>"; };
 		A081FC13F508543C3CEAE76C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		AE159DB96B792EAA34FC183B /* WindowContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowContextCapture.swift; sourceTree = "<group>"; };
 		B5859E2DF0AEB37563356ABB /* PhraseDeckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseDeckApp.swift; sourceTree = "<group>"; };
 		CB7B3D99C2E5F8826028860B /* PhraseDeck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhraseDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC6954BB353565169E3457E0 /* ReadOnlySQLite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadOnlySQLite.swift; sourceTree = "<group>"; };
 		CDE7F4399C8128A27031F549 /* SentMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentMessage.swift; sourceTree = "<group>"; };
 		CEC7D4FBD9BBB1AE879EB1C5 /* SmartReplyGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartReplyGenerator.swift; sourceTree = "<group>"; };
 		DBB70B679C53BCA528E2D44C /* AgentCLI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCLI.swift; sourceTree = "<group>"; };
@@ -111,16 +115,18 @@
 				DBB70B679C53BCA528E2D44C /* AgentCLI.swift */,
 				9D70695C61C157C02C0A3373 /* AppConst.swift */,
 				6A5FE69F309AF69F4CB70E45 /* AppSendCollector.swift */,
+				0FC35E27D220051F98CBC583 /* ChatContext.swift */,
 				58F7EED596740F15B475F384 /* CursorAISummarizer.swift */,
+				99132B91EE9C3AF09E50656B /* CursorChatContextProvider.swift */,
 				FE8157939D204EE28BBE562A /* DebugSessionLog.swift */,
 				47D0F8499ECB4C5FF4C6B02F /* HotKeyManager.swift */,
 				8472E4D55C06A5AFE52E8FCE /* MessageLogStore.swift */,
 				38EB2A7A35E43EC28041A068 /* PermissionManager.swift */,
 				743D3772D8CEDB26DADFAE99 /* PhraseMiner.swift */,
 				9F77B0E8317F28DCB296A47E /* PhraseStore.swift */,
+				CC6954BB353565169E3457E0 /* ReadOnlySQLite.swift */,
 				CEC7D4FBD9BBB1AE879EB1C5 /* SmartReplyGenerator.swift */,
 				E46125AD46F42313114B3250 /* TextInserter.swift */,
-				AE159DB96B792EAA34FC183B /* WindowContextCapture.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -210,7 +216,9 @@
 				A81FC4C4C9E056D3B8727CEC /* AgentCLI.swift in Sources */,
 				76EB01BC9D25B12461EDFF18 /* AppConst.swift in Sources */,
 				54544F762726A6377914ACD1 /* AppSendCollector.swift in Sources */,
+				5DC0DCFDB9597097C1ECE9AF /* ChatContext.swift in Sources */,
 				07DC99D57460746666A49D09 /* CursorAISummarizer.swift in Sources */,
+				62F1F9DF2F0A0502D220AFF2 /* CursorChatContextProvider.swift in Sources */,
 				CDCE5B8A50206E8309C7E602 /* DebugSessionLog.swift in Sources */,
 				605C18CE68BDD09AD648D731 /* HotKeyManager.swift in Sources */,
 				CE50F8BF6C5A08030FC31E3F /* MessageLogStore.swift in Sources */,
@@ -221,11 +229,11 @@
 				240F4F08ED2F464F03406F6C /* PhraseDeckApp.swift in Sources */,
 				E80D40D01DD3298EDD424199 /* PhraseMiner.swift in Sources */,
 				0F110D2613CAD1FA8E9E7F30 /* PhraseStore.swift in Sources */,
+				FADB4DAA0151F674EE65731F /* ReadOnlySQLite.swift in Sources */,
 				BA2D7936922E494296B9AD07 /* SentMessage.swift in Sources */,
 				F2D32719EFF15F11920CD25F /* SettingsView.swift in Sources */,
 				1B436AFE8B8DD7C5634EC8DE /* SmartReplyGenerator.swift in Sources */,
 				CE1D69882889202306269EDE /* TextInserter.swift in Sources */,
-				A3D9BF454AB79D3843072652 /* WindowContextCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,7 +254,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework Vision";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;
@@ -268,7 +275,6 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework Vision";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;
