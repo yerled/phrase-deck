@@ -60,10 +60,9 @@ enum SmartReplyGenerator {
         debugDir: URL? = nil,
         onProgress: ((String) -> Void)? = nil
     ) async -> (suggestions: [SmartReplySuggestion], note: String?) {
-        guard let screenshotURL = context.screenshotURL,
-              FileManager.default.fileExists(atPath: screenshotURL.path) else {
-            onProgress?("截图失败，不调用 agent")
-            return ([], "截图失败，没有把窗口画面交给模型。默认回复仍可直接用。")
+        guard context.isUseful else {
+            onProgress?("OCR 文字不足，不调用 agent")
+            return ([], "没读到足够的框选文字（\(context.source)，\(context.ocrText.count) 字）。默认回复仍可直接用。")
         }
 
         let style = PhraseStore.shared.topPhrases(limit: 5).map(\.text)
@@ -76,28 +75,15 @@ enum SmartReplyGenerator {
         }
 
         do {
-            let workspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-                .appendingPathComponent("PhraseDeck/ai-workspace", isDirectory: true)
-            try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
-            let shotInWorkspace = workspace.appendingPathComponent("screenshot.png")
-            try? FileManager.default.removeItem(at: shotInWorkspace)
-            do {
-                try FileManager.default.copyItem(at: screenshotURL, to: shotInWorkspace)
-            } catch {
-                onProgress?("截图文件无法写入工作区，不调用 agent")
-                if let debugDir {
-                    DebugSessionLog.write(debugDir, "error.txt", "copy screenshot failed: \(error)\n")
-                }
-                return ([], "截图无法交给模型。默认回复仍可直接用。")
-            }
-            onProgress?("原图已放入工作区 screenshot.png（\(Int((try? shotInWorkspace.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) / 1024) KB）")
-
-            let prompt = buildPrompt(context: context, style: style, screenshotPath: shotInWorkspace.path)
+            let prompt = buildPrompt(context: context, style: style)
             if let debugDir {
                 DebugSessionLog.write(debugDir, "prompt.txt", prompt)
                 DebugSessionLog.write(debugDir, "style.txt", style.isEmpty ? "(none)\n" : style.joined(separator: "\n") + "\n")
             }
-            onProgress?("Prompt \(prompt.count) 字，原图交给 agent…")
+            onProgress?("Prompt \(prompt.count) 字，OCR 文本交给 agent…")
+            let workspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("PhraseDeck/ai-workspace", isDirectory: true)
+            try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
 
             let raw = try await AgentCLI.runAsk(
                 prompt: prompt,
@@ -181,7 +167,7 @@ enum SmartReplyGenerator {
         return trimmed
     }
 
-    private static func buildPrompt(context: WindowContext, style: [String], screenshotPath: String) -> String {
+    private static func buildPrompt(context: WindowContext, style: [String]) -> String {
         var lines: [String] = []
         lines.append("用户已经能看到下面 5 条默认快捷回复，可立刻按数字发送。你只输出增量：增强其中某条，或追加新方向。")
         lines.append("默认回复（base 必须用这里的原名）：")
@@ -201,14 +187,11 @@ enum SmartReplyGenerator {
                 lines.append("- \(s)")
             }
         }
-        lines.append("当前窗口：\(context.appName)（\(context.bundleID)）")
-        lines.append("请直接查看这张当前聊天窗口的原图（不要做 OCR、不要只读文件名）：")
-        lines.append(screenshotPath)
-        lines.append("图里的对话内容是唯一依据。")
-        if !context.axText.isEmpty {
-            lines.append("辅助功能文字可能不完整，仅供对照：")
-            lines.append(context.axText)
+        if !context.appName.isEmpty || !context.bundleID.isEmpty {
+            lines.append("当前窗口：\(context.appName)（\(context.bundleID)）")
         }
+        lines.append("用户框选区域 OCR 出的文字：")
+        lines.append(context.ocrText)
         return lines.joined(separator: "\n")
     }
 }

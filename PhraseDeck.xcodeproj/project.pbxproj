@@ -246,7 +246,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit";
+				OTHER_LDFLAGS = "$(inherited) -framework Vision";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;
@@ -268,7 +268,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework ScreenCaptureKit";
+				OTHER_LDFLAGS = "$(inherited) -framework Vision";
 				PRODUCT_BUNDLE_IDENTIFIER = com.yerled.PhraseDeck;
 				PRODUCT_NAME = PhraseDeck;
 				SDKROOT = macosx;

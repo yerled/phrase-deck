@@ -27,7 +27,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.yerled.PhraseDeck
         INFOPLIST_FILE: PhraseDeck/Resources/Info.plist
         GENERATE_INFOPLIST_FILE: false
-        OTHER_LDFLAGS: "$(inherited) -framework ScreenCaptureKit"
+        OTHER_LDFLAGS: "$(inherited) -framework Vision"
         CODE_SIGN_ENTITLEMENTS: PhraseDeck/Resources/PhraseDeck.entitlements
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: true

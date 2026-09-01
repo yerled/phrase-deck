@@ -69,38 +69,52 @@ final class OverlayPanelController: NSObject, ObservableObject {
         smartSuggestions = SmartReplyGenerator.defaults
         smartNote = nil
         debugLog = []
-        smartStatus = "正在读取当前窗口…"
-        presentPanel()
-        syncActiveTexts()
+        smartStatus = "请框选要识别的区域…"
+        stopElapsed()
         let debugDir = DebugSessionLog.begin()
         appendDebug("完整日志：\(debugDir.path)")
-        appendDebug("也可打开菜单「打开智能回复调试日志」")
+        appendDebug("请拖选要识别的区域，Esc 取消")
         if let target {
             appendDebug("目标窗口：\(target.localizedName ?? "?")  \(target.bundleIdentifier ?? "")")
-        } else {
-            appendDebug("没有找到前台飞书/Cursor 窗口")
         }
-        startElapsed(status: "正在读取当前窗口")
 
         Task { @MainActor in
             guard token == generation else { return }
-            let context = await WindowContextCapture.capture(app: target, debugDir: debugDir) { [weak self] line in
+            let shot = await WindowContextCapture.selectRegion { [weak self] line in
                 DispatchQueue.main.async { self?.appendDebug(line) }
             }
             guard token == generation else { return }
-            if let frame = context.windowFrame {
-                let desc = String(format: "%.0f×%.0f @ (%.0f, %.0f)", frame.width, frame.height, frame.origin.x, frame.origin.y)
-                appendDebug("窗口区域 \(desc)")
+            presentPanel()
+            syncActiveTexts()
+
+            guard let shot else {
+                stopElapsed()
+                smartStatus = ""
+                smartNote = "已取消框选。默认回复仍可直接用。"
+                appendDebug("已取消框选，不调用 agent")
+                scheduleRelayout()
+                return
             }
+
+            appendDebug("框选 \(shot.image.width)×\(shot.image.height)，开始 OCR")
+            startElapsed(status: "正在 OCR")
+            let context = await WindowContextCapture.recognize(
+                image: shot.image,
+                screenshotURL: shot.url,
+                app: target,
+                debugDir: debugDir
+            ) { [weak self] line in
+                DispatchQueue.main.async { self?.appendDebug(line) }
+            }
+            guard token == generation else { return }
             if let pixels = context.screenshotPixels {
-                appendDebug("截图像素 \(Int(pixels.width))×\(Int(pixels.height))，原图 screenshot.png")
+                appendDebug("截图像素 \(Int(pixels.width))×\(Int(pixels.height))，对照 screenshot.png")
             }
-            if context.hasScreenshot {
-                appendDebug("上下文 \(context.source)，AX \(context.axText.count) 字，已跳过 OCR，原图交给 agent")
+            appendDebug("OCR \(context.ocrText.count) 字，来源 \(context.source)，有用=\(context.isUseful ? "是" : "否")")
+            if context.isUseful {
                 startElapsed(status: "正在调用 Cursor Agent")
             } else {
-                appendDebug("上下文 \(context.source)，截图失败，不调用 agent")
-                startElapsed(status: "截图失败，保留默认回复")
+                startElapsed(status: "OCR 文字不足，保留默认回复")
             }
 
             let result = await SmartReplyGenerator.generate(from: context, debugDir: debugDir) { [weak self] line in
