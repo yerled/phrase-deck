@@ -26,6 +26,40 @@ enum PhraseMiner {
             .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
     }
 
+    /// Collapse whitespace, case, and common punctuation for frequency matching.
+    static func compactForMatch(_ text: String) -> String {
+        String(normalize(text).lowercased().compactMap { ch -> Character? in
+            if ch.isWhitespace { return nil }
+            switch ch {
+            case ",", ".", "!", "?", ";", ":", "，", "。", "！", "？", "、", "；", "：":
+                return nil
+            default:
+                return ch
+            }
+        })
+    }
+
+    /// Whether a sent message should count as one use of this phrase.
+    static func messageSupportsPhrase(_ phrase: String, message: String) -> Bool {
+        let p = normalize(phrase)
+        let m = normalize(message)
+        guard !p.isEmpty, !m.isEmpty else { return false }
+        if m == p { return true }
+        if extractCandidates(from: m).contains(p) { return true }
+
+        let pc = compactForMatch(p)
+        let mc = compactForMatch(m)
+        if pc.isEmpty { return false }
+        if mc == pc { return true }
+        // Short tokens like "打包" must not match every message that happens to contain them.
+        if pc.count >= 8 && mc.contains(pc) { return true }
+        return false
+    }
+
+    static func occurrenceCount(of phrase: String, in texts: [String]) -> Int {
+        texts.reduce(0) { $0 + (messageSupportsPhrase(phrase, message: $1) ? 1 : 0) }
+    }
+
     /// Editor placeholders, button titles, and other UI copy — not user-authored text.
     static func looksLikeUIChrome(_ text: String) -> Bool {
         let t = normalize(text)

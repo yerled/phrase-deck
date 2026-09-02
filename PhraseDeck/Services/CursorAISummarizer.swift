@@ -91,7 +91,7 @@ final class CursorAISummarizer: ObservableObject {
                     NSLocalizedDescriptionKey: "Agent 返回空短语列表，已保留现有短语库",
                 ])
             }
-            PhraseStore.shared.replaceAll(with: suggestions)
+            PhraseStore.shared.replaceAll(with: suggestions, messages: messages)
             let now = Date()
             lastRunAt = now
             UserDefaults.standard.set(now, forKey: Keys.lastRun)
@@ -120,7 +120,7 @@ final class CursorAISummarizer: ObservableObject {
         encoder.dateEncodingStrategy = .iso8601
 
         let phrasePayload = phrases.map {
-            WorkspacePhrase(text: $0.text, count: $0.count, source: $0.source.rawValue)
+            WorkspacePhrase(text: $0.text, source: $0.source.rawValue)
         }
         let messagePayload = messages.map {
             WorkspaceMessage(text: $0.text, appName: $0.appName, createdAt: $0.createdAt)
@@ -149,8 +149,8 @@ final class CursorAISummarizer: ObservableObject {
         lines.append("4. source=manual 的有用短语应保留，除非明显无意义。")
         lines.append("5. 必须完整覆盖全部日志与现有短语，不要只输出 Top N，没有数量上限。有多少条真正可复用就输出多少条。不要编造日志和短语库里都没有依据的句子。")
         lines.append("6. 只输出 JSON 数组，不要 markdown，不要解释。格式：")
-        lines.append("[{\"text\":\"收到，我这边确认一下。\",\"weight\":8},{\"text\":\"LGTM\",\"weight\":6}]")
-        lines.append("weight 为正整数，表示常用程度（可按日志出现次数 + 原 count 估计，不设上限）。")
+        lines.append("[{\"text\":\"收到，我这边确认一下。\"},{\"text\":\"LGTM\"}]")
+        lines.append("不要输出 weight 或次数。出现次数由程序按发送日志统计，禁止估算或累加历史权重。")
 
         let inline = compactCorpus(phrases: phrases, messages: messages)
         if inline.utf8.count <= 80_000 {
@@ -171,7 +171,7 @@ final class CursorAISummarizer: ObservableObject {
             lines.append("（空）")
         } else {
             for (i, phrase) in phrases.enumerated() {
-                lines.append("\(i + 1). [count=\(phrase.count), source=\(phrase.source.rawValue)] \(oneLine(phrase.text))")
+                lines.append("\(i + 1). [source=\(phrase.source.rawValue)] \(oneLine(phrase.text))")
             }
         }
         lines.append("")
@@ -199,7 +199,6 @@ final class CursorAISummarizer: ObservableObject {
 
 private struct WorkspacePhrase: Encodable {
     var text: String
-    var count: Int
     var source: String
 }
 

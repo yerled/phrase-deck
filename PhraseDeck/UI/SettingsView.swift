@@ -122,7 +122,7 @@ struct SettingsView: View {
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(phrase.text)
-                                    Text("次数 \(phrase.count) · 分数 \(String(format: "%.1f", phrase.score)) · \(phrase.source.rawValue)")
+                                    Text("发送 \(phrase.count) 次 · 分数 \(String(format: "%.1f", phrase.score)) · \(phrase.source.rawValue)")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }

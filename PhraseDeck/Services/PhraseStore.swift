@@ -29,6 +29,7 @@ final class PhraseStore: ObservableObject {
         if phrases.isEmpty {
             seedDemoPhrases()
         }
+        recomputeCounts(from: MessageLogStore.shared.messages)
     }
 
     func topPhrases(limit: Int = 10) -> [Phrase] {
@@ -71,7 +72,8 @@ final class PhraseStore: ObservableObject {
     }
 
     /// Replace the library with a full AI rebuild. Matching text keeps id / createdAt.
-    func replaceAll(with items: [AIPhraseSuggestion]) {
+    /// `count` is always observed log frequency, never the model's guessed weight.
+    func replaceAll(with items: [AIPhraseSuggestion], messages: [SentMessage]) {
         var existingByText: [String: Phrase] = [:]
         for phrase in phrases where existingByText[phrase.text] == nil {
             existingByText[phrase.text] = phrase
@@ -83,23 +85,61 @@ final class PhraseStore: ObservableObject {
             let normalized = PhraseMiner.normalize(item.text)
             guard PhraseMiner.isEligiblePhrase(normalized) else { continue }
             guard seen.insert(normalized).inserted else { continue }
-            let weight = max(1, item.weight ?? 1)
+            let observed = observedCount(of: normalized, in: messages)
 
             if let existing = existingByText[normalized] {
                 var updated = existing
-                updated.count = weight
-                updated.lastUsedAt = Date()
+                updated.count = observed
+                if let latest = latestOccurrence(of: normalized, in: messages) {
+                    updated.lastUsedAt = latest
+                }
                 if existing.source != .manual {
                     updated.source = .ai
                 }
                 next.append(updated)
             } else {
-                next.append(Phrase(text: normalized, count: weight, source: .ai))
+                next.append(
+                    Phrase(
+                        text: normalized,
+                        count: observed,
+                        lastUsedAt: latestOccurrence(of: normalized, in: messages) ?? Date(),
+                        source: .ai
+                    )
+                )
             }
         }
 
         phrases = next
         persist()
+    }
+
+    /// Rebuild `count` / recency from the send log so overlay "×N" means times sent.
+    func recomputeCounts(from messages: [SentMessage]) {
+        var changed = false
+        for i in phrases.indices {
+            let observed = observedCount(of: phrases[i].text, in: messages)
+            if phrases[i].count != observed {
+                phrases[i].count = observed
+                changed = true
+            }
+            if let latest = latestOccurrence(of: phrases[i].text, in: messages),
+               phrases[i].lastUsedAt != latest {
+                phrases[i].lastUsedAt = latest
+                changed = true
+            }
+        }
+        if changed { persist() }
+    }
+
+    private func observedCount(of phrase: String, in messages: [SentMessage]) -> Int {
+        max(1, PhraseMiner.occurrenceCount(of: phrase, in: messages.map(\.text)))
+    }
+
+    private func latestOccurrence(of phrase: String, in messages: [SentMessage]) -> Date? {
+        messages
+            .filter { PhraseMiner.messageSupportsPhrase(phrase, message: $0.text) }
+            .map(\.createdAt)
+            .max()
     }
 
     // MARK: - Persistence
