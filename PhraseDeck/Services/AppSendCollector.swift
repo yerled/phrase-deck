@@ -81,13 +81,15 @@ final class AppSendCollector: ObservableObject {
         let isReturn = keyCode == Int64(kVK_Return) || keyCode == Int64(kVK_ANSI_KeypadEnter)
         guard isReturn else { return }
 
-        let flags = event.flags
+        // Read before the target app handles Enter and clears the composer.
+        // Async capture after send often sees the empty-field placeholder instead.
+        let text = Self.readFocusedText()
         DispatchQueue.main.async { [weak self] in
-            self?.captureIfNeeded(flags: flags)
+            self?.captureIfNeeded(text: text)
         }
     }
 
-    private func captureIfNeeded(flags: CGEventFlags) {
+    private func captureIfNeeded(text: String?) {
         guard isEnabled else { return }
         guard !OverlayPanelController.shared.isVisible else { return }
 
@@ -95,10 +97,7 @@ final class AppSendCollector: ObservableObject {
               let bundleID = app.bundleIdentifier,
               AppConst.watchedBundleIDs.contains(bundleID) else { return }
 
-        // Ignore pure modifier-less? Capture both Enter and ⌘Enter
-        _ = flags
-
-        guard let text = Self.readFocusedText(), !text.isEmpty else { return }
+        guard let text, !text.isEmpty, !PhraseMiner.looksLikeUIChrome(text) else { return }
         let name = app.localizedName ?? bundleID
         if let msg = MessageLogStore.shared.append(text: text, appBundleID: bundleID, appName: name) {
             lastCaptured = msg.text
@@ -107,39 +106,82 @@ final class AppSendCollector: ObservableObject {
         }
     }
 
-    private static func readFocusedText() -> String? {
+    nonisolated private static let chromeRoles: Set<String> = [
+        kAXButtonRole as String,
+        kAXStaticTextRole as String,
+        kAXMenuItemRole as String,
+        kAXMenuRole as String,
+        kAXMenuBarItemRole as String,
+        kAXPopUpButtonRole as String,
+        kAXCheckBoxRole as String,
+        kAXRadioButtonRole as String,
+        kAXTabGroupRole as String,
+        kAXImageRole as String,
+        "AXLink",
+        "AXToolbar",
+        "AXTab",
+    ]
+
+    nonisolated private static func readFocusedText() -> String? {
         let system = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
               let focusedRef else { return nil }
         let focused = focusedRef as! AXUIElement
 
-        if let value = axString(focused, kAXValueAttribute as String), !value.isEmpty {
-            return value
+        guard let element = resolveTextElement(from: focused) else { return nil }
+
+        let raw: String?
+        if let value = axString(element, kAXValueAttribute as String), !value.isEmpty {
+            raw = value
+        } else if let selected = axString(element, kAXSelectedTextAttribute as String), !selected.isEmpty {
+            raw = selected
+        } else {
+            return nil
         }
-        // Some Electron fields expose selected text / placeholder differently
-        if let selected = axString(focused, kAXSelectedTextAttribute as String), !selected.isEmpty {
-            return selected
+        guard let raw else { return nil }
+
+        // Electron often surfaces the placeholder as AXValue when the field is empty.
+        if let placeholder = axString(element, kAXPlaceholderValueAttribute as String),
+           !placeholder.isEmpty,
+           raw == placeholder {
+            return nil
         }
-        // Walk up a few parents looking for a text value
-        var current: AXUIElement? = focused
-        for _ in 0..<5 {
-            guard let el = current else { break }
-            if let value = axString(el, kAXValueAttribute as String), value.count >= 2 {
-                return value
-            }
-            var parent: CFTypeRef?
-            if AXUIElementCopyAttributeValue(el, kAXParentAttribute as CFString, &parent) == .success,
-               let parent {
-                current = (parent as! AXUIElement)
-            } else {
-                break
-            }
+        if PhraseMiner.looksLikeUIChrome(raw) {
+            return nil
         }
-        return nil
+        return raw
     }
 
-    private static func axString(_ element: AXUIElement, _ attr: String) -> String? {
+    /// Prefer the focused text field. Do not take AXValue from buttons / labels
+    /// (Cursor's "Send follow-up" and similar chrome).
+    nonisolated private static func resolveTextElement(from focused: AXUIElement) -> AXUIElement? {
+        if isChromeRole(focused) {
+            var current: AXUIElement? = focused
+            for _ in 0..<5 {
+                guard let el = current else { break }
+                if !isChromeRole(el), axString(el, kAXValueAttribute as String)?.isEmpty == false {
+                    return el
+                }
+                current = axParent(el)
+            }
+            return nil
+        }
+        return focused
+    }
+
+    nonisolated private static func isChromeRole(_ element: AXUIElement) -> Bool {
+        chromeRoles.contains(axString(element, kAXRoleAttribute as String) ?? "")
+    }
+
+    nonisolated private static func axParent(_ element: AXUIElement) -> AXUIElement? {
+        var parent: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parent) == .success,
+              let parent else { return nil }
+        return (parent as! AXUIElement)
+    }
+
+    nonisolated private static func axString(_ element: AXUIElement, _ attr: String) -> String? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attr as CFString, &ref) == .success,
               let ref else { return nil }

@@ -10,6 +10,15 @@ enum PhraseMiner {
     private static let emailOnly = try! NSRegularExpression(pattern: #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#)
     private static let urlOnly = try! NSRegularExpression(pattern: #"^https?://\S+$"#)
 
+    /// Cursor / Electron chrome that Accessibility often exposes as the focused value.
+    private static let uiChromeExact: Set<String> = [
+        "Plan, Build, / for skills, @ for context",
+        "Send follow-up",
+        "Ask a follow-up",
+        "Add a follow-up",
+        "Ask, Plan, Agent dropdown, @ for context",
+    ]
+
     static func normalize(_ raw: String) -> String {
         raw
             .replacingOccurrences(of: "\r\n", with: "\n")
@@ -17,9 +26,23 @@ enum PhraseMiner {
             .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
     }
 
+    /// Editor placeholders, button titles, and other UI copy — not user-authored text.
+    static func looksLikeUIChrome(_ text: String) -> Bool {
+        let t = normalize(text)
+        if t.isEmpty { return false }
+        if uiChromeExact.contains(t) { return true }
+        let lower = t.lowercased()
+        if lower.contains("/ for skills") && lower.contains("@ for context") { return true }
+        if lower == "send follow-up" || lower == "ask a follow-up" || lower == "add a follow-up" {
+            return true
+        }
+        return false
+    }
+
     static func isEligiblePhrase(_ text: String) -> Bool {
         let t = normalize(text)
         guard t.count >= minLength, t.count <= maxLength else { return false }
+        if looksLikeUIChrome(t) { return false }
         if t.contains("\t") { return false }
         if matches(passwordLike, t) { return false }
         if matches(mostlyDigits, t) { return false }

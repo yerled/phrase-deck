@@ -144,7 +144,7 @@ final class CursorAISummarizer: ObservableObject {
         lines.append("- input-messages.json：全部发送日志")
         lines.append("要求：")
         lines.append("1. 只保留工作、生活里可直接粘贴复用的话（打招呼、确认、约时间、致谢、催进度、请假、回复收到、同步进展等）。")
-        lines.append("2. 丢弃：一次性上下文、人名、具体链接、验证码、密码、代码、无意义碎片、过长不可复用的整段、纯数字/邮箱/URL、明显是调试或命令输出的内容。")
+        lines.append("2. 丢弃：一次性上下文、人名、具体链接、验证码、密码、代码、无意义碎片、过长不可复用的整段、纯数字/邮箱/URL、明显是调试或命令输出的内容、编辑器/聊天框占位符和按钮文案（如 Cursor 的 Plan/Build 占位、Send follow-up）。")
         lines.append("3. 合并近义重复，保留更自然、更短、可直接发送的写法。")
         lines.append("4. source=manual 的有用短语应保留，除非明显无意义。")
         lines.append("5. 必须完整覆盖全部日志与现有短语，不要只输出 Top N，没有数量上限。有多少条真正可复用就输出多少条。不要编造日志和短语库里都没有依据的句子。")

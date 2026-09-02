@@ -31,6 +31,7 @@ final class MessageLogStore: ObservableObject {
     @discardableResult
     func append(text: String, appBundleID: String, appName: String) -> SentMessage? {
         let normalized = PhraseMiner.normalize(text)
+        guard !PhraseMiner.looksLikeUIChrome(normalized) else { return nil }
         guard PhraseMiner.isEligiblePhrase(normalized) || isChatLike(normalized) else { return nil }
         guard !looksLikeCode(normalized) else { return nil }
 
@@ -67,6 +68,9 @@ final class MessageLogStore: ObservableObject {
         do {
             let data = try Data(contentsOf: fileURL)
             messages = try decoder.decode([SentMessage].self, from: data)
+            let before = messages.count
+            messages.removeAll { PhraseMiner.looksLikeUIChrome($0.text) }
+            if messages.count != before { persist() }
         } catch {
             NSLog("MessageLogStore load failed: \(error)")
         }

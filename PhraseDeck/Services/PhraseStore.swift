@@ -109,6 +109,9 @@ final class PhraseStore: ObservableObject {
         do {
             let data = try Data(contentsOf: fileURL)
             phrases = try decoder.decode([Phrase].self, from: data)
+            let before = phrases.count
+            phrases.removeAll { !PhraseMiner.isEligiblePhrase($0.text) }
+            if phrases.count != before { persist() }
         } catch {
             NSLog("PhraseStore load failed: \(error)")
         }
