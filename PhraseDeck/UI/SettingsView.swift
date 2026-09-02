@@ -5,8 +5,8 @@ struct SettingsView: View {
     @ObservedObject private var appSend = AppSendCollector.shared
     @ObservedObject private var messageLog = MessageLogStore.shared
     @ObservedObject private var ai = CursorAISummarizer.shared
+    @ObservedObject private var permissions = PermissionManager.shared
     @State private var draft = ""
-    @State private var accessibilityOK = PermissionManager.hasAccessibility
 
     var body: some View {
         ScrollView {
@@ -26,19 +26,32 @@ struct SettingsView: View {
                 GroupBox("权限") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Image(systemName: accessibilityOK ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                                .foregroundStyle(accessibilityOK ? .green : .orange)
-                            Text(accessibilityOK ? "辅助功能已授权" : "需要辅助功能（采集发送 + 粘贴）")
+                            Image(systemName: permissions.accessibilityTrusted ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .foregroundStyle(permissions.accessibilityTrusted ? .green : .orange)
+                            Text(permissions.accessibilityTrusted ? "辅助功能已授权" : "需要辅助功能（采集发送 + 粘贴）")
                             Spacer()
-                            if !accessibilityOK {
+                            if !permissions.accessibilityTrusted {
                                 Button("去授权") {
                                     PermissionManager.requestAccessibility()
                                     PermissionManager.openAccessibilitySettings()
                                 }
                             }
                         }
-                        Button("刷新权限") {
-                            accessibilityOK = PermissionManager.hasAccessibility
+                        HStack {
+                            Image(systemName: permissions.hotKeyTapActive ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                .foregroundStyle(permissions.hotKeyTapActive ? .green : .orange)
+                            Text(permissions.hotKeyTapActive ? "双击 ⌘ 监听已生效" : "双击 ⌘ 监听未生效")
+                        }
+                        if permissions.needsRelaunch {
+                            Text("授权已经记下，但当前这次运行里事件监听仍然建不起来。macOS 经常要完全退出后再打开才会生效。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("重新启动 PhraseDeck") {
+                                PermissionManager.shared.relaunch()
+                            }
+                        }
+                        Button("刷新并重新注册监听") {
+                            PermissionManager.shared.refreshFromSettings()
                         }
                     }
                     .padding(4)
@@ -156,7 +169,7 @@ struct SettingsView: View {
         }
         .frame(width: 580, height: 720)
         .onAppear {
-            accessibilityOK = PermissionManager.hasAccessibility
+            PermissionManager.shared.syncTaps(force: true)
         }
     }
 }

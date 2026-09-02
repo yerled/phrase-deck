@@ -16,6 +16,8 @@ release: generate
 		build
 
 package: release
+	-killall PhraseDeck 2>/dev/null
+	sleep 0.3
 	rm -rf dist/PhraseDeck.app
 	mkdir -p dist
 	cp -R build/Build/Products/Release/PhraseDeck.app dist/
@@ -23,6 +25,8 @@ package: release
 	@echo "Packaged: $(CURDIR)/dist/PhraseDeck.app"
 
 run: package
+	-killall PhraseDeck 2>/dev/null
+	sleep 0.3
 	open dist/PhraseDeck.app
 
 # Daily loop: Debug build, replace the running app. Same bundle ID, so TCC permissions stick.

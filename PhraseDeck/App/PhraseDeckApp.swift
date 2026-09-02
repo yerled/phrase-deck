@@ -21,7 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         setupStatusItem()
-        AppSendCollector.shared.start()
         CursorAISummarizer.shared.start()
 
         HotKeyManager.shared.onHotKey = {
@@ -30,20 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.onTripleHotKey = {
             OverlayPanelController.shared.showSmartReply()
         }
-        HotKeyManager.shared.register()
-
-        if !PermissionManager.hasAccessibility {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                PermissionManager.requestAccessibility()
-            }
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            if PermissionManager.hasAccessibility {
-                HotKeyManager.shared.register()
-                AppSendCollector.shared.start()
-            }
-        }
+        PermissionManager.shared.startWatching()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -102,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func requestAccess() {
-        PermissionManager.requestAccessibility()
+        PermissionManager.shared.refreshFromSettings()
         PermissionManager.openAccessibilitySettings()
     }
 

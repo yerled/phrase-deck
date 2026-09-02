@@ -13,6 +13,7 @@ final class AppSendCollector: ObservableObject {
 
     @Published private(set) var lastCaptured: String?
     @Published private(set) var lastAppName: String?
+    @Published private(set) var isTapActive = false
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -26,9 +27,13 @@ final class AppSendCollector: ObservableObject {
         isEnabled = UserDefaults.standard.object(forKey: Keys.enabled) as? Bool ?? true
     }
 
-    func start() {
+    func start(force: Bool = false) {
+        guard isEnabled else {
+            stop()
+            return
+        }
+        if isTapActive && !force { return }
         stop()
-        guard isEnabled else { return }
 
         let mask = (1 << CGEventType.keyDown.rawValue)
         let userInfo = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
@@ -52,6 +57,7 @@ final class AppSendCollector: ObservableObject {
             userInfo: userInfo
         ) else {
             NSLog("PhraseDeck: AppSendCollector tap failed — need Accessibility")
+            isTapActive = false
             return
         }
 
@@ -62,6 +68,7 @@ final class AppSendCollector: ObservableObject {
             CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
         CGEvent.tapEnable(tap: tap, enable: true)
+        isTapActive = true
     }
 
     func stop() {
@@ -74,6 +81,7 @@ final class AppSendCollector: ObservableObject {
         eventTap = nil
         tapPort = nil
         runLoopSource = nil
+        isTapActive = false
     }
 
     nonisolated private func handleKeyDown(_ event: CGEvent) {

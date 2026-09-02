@@ -8,8 +8,10 @@ final class HotKeyManager {
     var onHotKey: (() -> Void)?
     var onTripleHotKey: (() -> Void)?
 
+    private(set) var isTapActive = false
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    nonisolated(unsafe) private var tapPort: CFMachPort?
 
     private var commandIsDown = false
     private var sawOtherKeyWhileCommand = false
@@ -19,7 +21,8 @@ final class HotKeyManager {
 
     private init() {}
 
-    func register() {
+    func register(force: Bool = false) {
+        if isTapActive && !force { return }
         unregister()
 
         let mask =
@@ -43,15 +46,19 @@ final class HotKeyManager {
             userInfo: userInfo
         ) else {
             NSLog("PhraseDeck: failed to create event tap — grant Accessibility permission")
+            isTapActive = false
             return
         }
 
         eventTap = tap
+        tapPort = tap
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         if let runLoopSource {
             CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
         CGEvent.tapEnable(tap: tap, enable: true)
+        isTapActive = true
+        NSLog("PhraseDeck: command-tap registered")
     }
 
     func unregister() {
@@ -62,7 +69,9 @@ final class HotKeyManager {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
         eventTap = nil
+        tapPort = nil
         runLoopSource = nil
+        isTapActive = false
         commandIsDown = false
         sawOtherKeyWhileCommand = false
         lastCleanTapAt = 0
@@ -77,8 +86,8 @@ final class HotKeyManager {
 
     private func handle(event: CGEvent, type: CGEventType) {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let eventTap {
-                CGEvent.tapEnable(tap: eventTap, enable: true)
+            if let port = tapPort {
+                CGEvent.tapEnable(tap: port, enable: true)
             }
             return
         }
