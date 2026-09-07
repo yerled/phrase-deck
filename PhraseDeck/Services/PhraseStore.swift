@@ -7,6 +7,10 @@ final class PhraseStore: ObservableObject {
 
     @Published private(set) var phrases: [Phrase] = []
 
+    /// Overlay inserts already incremented `count`; skip the next matching send so paste-then-Enter is one use.
+    private var recentOverlayUses: [String: Date] = [:]
+    private let overlaySendDedupeInterval: TimeInterval = 120
+
     private let fileURL: URL
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
@@ -42,6 +46,11 @@ final class PhraseStore: ObservableObject {
         guard PhraseMiner.isEligiblePhrase(normalized) else { return nil }
 
         if let idx = phrases.firstIndex(where: { $0.text == normalized }) {
+            if consumeRecentOverlayUse(normalized) {
+                phrases[idx].lastUsedAt = Date()
+                persist()
+                return phrases[idx]
+            }
             phrases[idx].count += 1
             phrases[idx].lastUsedAt = Date()
             persist()
@@ -54,10 +63,13 @@ final class PhraseStore: ObservableObject {
         return phrase
     }
 
+    /// Shortcut / click insert: bump frequency and recency so score keeps stacking.
     func markUsed(_ id: UUID) {
         guard let idx = phrases.firstIndex(where: { $0.id == id }) else { return }
+        let now = Date()
         phrases[idx].count += 1
-        phrases[idx].lastUsedAt = Date()
+        phrases[idx].lastUsedAt = now
+        recentOverlayUses[phrases[idx].text] = now
         persist()
     }
 
@@ -68,11 +80,12 @@ final class PhraseStore: ObservableObject {
 
     func clearAll() {
         phrases = []
+        recentOverlayUses = [:]
         persist()
     }
 
     /// Replace the library with a full AI rebuild. Matching text keeps id / createdAt.
-    /// `count` is always observed log frequency, never the model's guessed weight.
+    /// `count` is observed log frequency, but overlay shortcut uses are never discarded.
     func replaceAll(with items: [AIPhraseSuggestion], messages: [SentMessage]) {
         var existingByText: [String: Phrase] = [:]
         for phrase in phrases where existingByText[phrase.text] == nil {
@@ -89,8 +102,9 @@ final class PhraseStore: ObservableObject {
 
             if let existing = existingByText[normalized] {
                 var updated = existing
-                updated.count = observed
-                if let latest = latestOccurrence(of: normalized, in: messages) {
+                updated.count = max(observed, existing.count)
+                if let latest = latestOccurrence(of: normalized, in: messages),
+                   latest > updated.lastUsedAt {
                     updated.lastUsedAt = latest
                 }
                 if existing.source != .manual {
@@ -113,22 +127,27 @@ final class PhraseStore: ObservableObject {
         persist()
     }
 
-    /// Rebuild `count` / recency from the send log so overlay "×N" means times sent.
+    /// Rebuild `count` / recency from the send log. Overlay shortcut uses can only raise the count.
     func recomputeCounts(from messages: [SentMessage]) {
         var changed = false
         for i in phrases.indices {
             let observed = observedCount(of: phrases[i].text, in: messages)
-            if phrases[i].count != observed {
+            if observed > phrases[i].count {
                 phrases[i].count = observed
                 changed = true
             }
             if let latest = latestOccurrence(of: phrases[i].text, in: messages),
-               phrases[i].lastUsedAt != latest {
+               latest > phrases[i].lastUsedAt {
                 phrases[i].lastUsedAt = latest
                 changed = true
             }
         }
         if changed { persist() }
+    }
+
+    private func consumeRecentOverlayUse(_ text: String) -> Bool {
+        guard let usedAt = recentOverlayUses.removeValue(forKey: text) else { return false }
+        return Date().timeIntervalSince(usedAt) < overlaySendDedupeInterval
     }
 
     private func observedCount(of phrase: String, in messages: [SentMessage]) -> Int {

@@ -170,6 +170,7 @@ final class OverlayPanelController: NSObject, ObservableObject {
         }
     }
 
+    /// Phrase overlay inserts increment usage so score keeps stacking; smart-reply text does not.
     private func insertText(_ text: String, phrase: Phrase? = nil) {
         dismiss()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -376,7 +377,8 @@ final class OverlayPanelController: NSObject, ObservableObject {
         if type == .keyDown {
             DispatchQueue.main.async { [weak self] in
                 guard let self, index < snapshot.count else { return }
-                self.insertText(snapshot[index], phrase: index < self.phrases.count ? self.phrases[index] : nil)
+                let phrase = self.phrases.first { $0.text == snapshot[index] }
+                self.insertText(snapshot[index], phrase: phrase)
             }
         }
         return true
