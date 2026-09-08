@@ -9,6 +9,10 @@ enum PhraseMiner {
     private static let mostlyDigits = try! NSRegularExpression(pattern: #"^\d[\d\s\-.]{3,}$"#)
     private static let emailOnly = try! NSRegularExpression(pattern: #"^[^\s@]+@[^\s@]+\.[^\s@]+$"#)
     private static let urlOnly = try! NSRegularExpression(pattern: #"^https?://\S+$"#)
+    private static let percentEncoded = try! NSRegularExpression(pattern: #"%[0-9A-Fa-f]{2}"#)
+    private static let domainWithPath = try! NSRegularExpression(pattern: #"(?i)[a-z0-9.-]+\.[a-z]{2,}/"#)
+    private static let hexToken = try! NSRegularExpression(pattern: #"^[A-Za-z]*[_-]?[0-9A-Fa-f]{16,}$"#)
+    private static let queryPair = try! NSRegularExpression(pattern: #"^[A-Za-z0-9_.%]+=\S+$"#)
 
     /// Cursor / Electron chrome that Accessibility often exposes as the focused value.
     private static let uiChromeExact: Set<String> = [
@@ -39,20 +43,20 @@ enum PhraseMiner {
         })
     }
 
-    /// Whether a sent message should count as one use of this phrase.
+    /// Count a send only when the phrase is the whole message or a whole line.
+    /// Substring / sentence-slice matching inflates URL fragments and paragraph pieces.
     static func messageSupportsPhrase(_ phrase: String, message: String) -> Bool {
         let p = normalize(phrase)
         let m = normalize(message)
         guard !p.isEmpty, !m.isEmpty else { return false }
-        if m == p { return true }
-        if extractCandidates(from: m).contains(p) { return true }
 
         let pc = compactForMatch(p)
-        let mc = compactForMatch(m)
-        if pc.isEmpty { return false }
-        if mc == pc { return true }
-        // Short tokens like "打包" must not match every message that happens to contain them.
-        if pc.count >= 8 && mc.contains(pc) { return true }
+        guard !pc.isEmpty else { return false }
+        if compactForMatch(m) == pc { return true }
+
+        for line in m.split(separator: "\n", omittingEmptySubsequences: true) {
+            if compactForMatch(String(line)) == pc { return true }
+        }
         return false
     }
 
@@ -77,6 +81,7 @@ enum PhraseMiner {
         let t = normalize(text)
         guard t.count >= minLength, t.count <= maxLength else { return false }
         if looksLikeUIChrome(t) { return false }
+        if looksLikeTechnicalJunk(t) { return false }
         if t.contains("\t") { return false }
         if matches(passwordLike, t) { return false }
         if matches(mostlyDigits, t) { return false }
@@ -87,34 +92,20 @@ enum PhraseMiner {
         return alnum.count >= 2
     }
 
-    /// Extract candidate phrases from a longer blob (sent message).
-    static func extractCandidates(from text: String) -> [String] {
-        let normalized = normalize(text)
-        guard !normalized.isEmpty else { return [] }
+    private static func looksLikeTechnicalJunk(_ text: String) -> Bool {
+        if matches(percentEncoded, text) { return true }
+        if text.hasPrefix("/") || text.hasPrefix("~") { return true }
+        if text.contains("/Users/") || text.contains("/Downloads/") { return true }
+        if matches(domainWithPath, text) { return true }
+        if matches(hexToken, text) { return true }
+        if matches(queryPair, text), !containsCJK(text) { return true }
+        let slashCount = text.filter { $0 == "/" }.count
+        if slashCount >= 2 && !containsCJK(text) { return true }
+        return false
+    }
 
-        if isEligiblePhrase(normalized) && !normalized.contains("\n") {
-            return [normalized]
-        }
-
-        var results: [String] = []
-        let lines = normalized.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-        for line in lines {
-            let trimmed = normalize(line)
-            if isEligiblePhrase(trimmed) {
-                results.append(trimmed)
-            }
-        }
-
-        // Simple sentence split for Chinese / English
-        let sentenceParts = normalized
-            .components(separatedBy: CharacterSet(charactersIn: "。！？.!?\n"))
-            .map { normalize($0) }
-            .filter { isEligiblePhrase($0) }
-        results.append(contentsOf: sentenceParts)
-
-        // Dedup preserve order
-        var seen = Set<String>()
-        return results.filter { seen.insert($0).inserted }
+    private static func containsCJK(_ text: String) -> Bool {
+        text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
     }
 
     private static func matches(_ regex: NSRegularExpression, _ text: String) -> Bool {

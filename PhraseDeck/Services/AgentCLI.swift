@@ -46,10 +46,12 @@ enum AgentCLI {
             "-p",
             "--trust",
             "--mode", "ask",
+            "--model", "auto",
             "--output-format", "text",
             "--workspace", workspace.path,
             prompt,
         ]
+        hopProgress(onProgress, "模型：auto")
         return try await runProcess(
             launchPath: agentPath,
             arguments: args,
@@ -173,6 +175,13 @@ enum AgentCLI {
                     || combined.localizedCaseInsensitiveContains("CURSOR_API_KEY") {
                     continuation.resume(throwing: NSError(domain: "PhraseDeck", code: 401, userInfo: [
                         NSLocalizedDescriptionKey: "Cursor 无头调用未认证。请到 https://cursor.com/dashboard/integrations 创建 User API Key，填进 PhraseDeck 设置。agent login 对 -p 模式无效。",
+                    ]))
+                    return
+                }
+                if combined.localizedCaseInsensitiveContains("out of usage")
+                    || combined.localizedCaseInsensitiveContains("Increase limits") {
+                    continuation.resume(throwing: NSError(domain: "PhraseDeck", code: 429, userInfo: [
+                        NSLocalizedDescriptionKey: "Cursor 额度用完了。已尝试 Auto；若仍失败，请到 Cursor 切换 Auto 或让管理员提高额度。",
                     ]))
                     return
                 }

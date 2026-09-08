@@ -95,14 +95,9 @@ final class CursorAISummarizer: ObservableObject {
             let now = Date()
             lastRunAt = now
             UserDefaults.standard.set(now, forKey: Keys.lastRun)
-            lastStatus = "成功：短语库更新为 \(suggestions.count) 条（基于 \(phrases.count) 条原短语 + \(messages.count) 条日志）"
+            lastStatus = "成功：短语库更新为 \(PhraseStore.shared.phrases.count) 条（基于 \(phrases.count) 条原短语 + \(messages.count) 条日志）"
         } catch {
-            for msg in messages {
-                for candidate in PhraseMiner.extractCandidates(from: msg.text) {
-                    _ = PhraseStore.shared.record(candidate, source: .mined)
-                }
-            }
-            lastStatus = "Cursor AI 失败，已本地提炼（未替换短语库）：\(error.localizedDescription)"
+            lastStatus = "Cursor AI 失败，已保留现有短语库：\(error.localizedDescription)"
             NSLog("PhraseDeck AI summarize failed: \(error)")
         }
     }

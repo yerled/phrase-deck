@@ -33,7 +33,7 @@ final class PhraseStore: ObservableObject {
         if phrases.isEmpty {
             seedDemoPhrases()
         }
-        recomputeCounts(from: MessageLogStore.shared.messages)
+        reconcile(with: MessageLogStore.shared.messages)
     }
 
     func topPhrases(limit: Int = 10) -> [Phrase] {
@@ -45,8 +45,9 @@ final class PhraseStore: ObservableObject {
         let normalized = PhraseMiner.normalize(text)
         guard PhraseMiner.isEligiblePhrase(normalized) else { return nil }
 
-        if let idx = phrases.firstIndex(where: { $0.text == normalized }) {
-            if consumeRecentOverlayUse(normalized) {
+        let key = PhraseMiner.compactForMatch(normalized)
+        if let idx = phrases.firstIndex(where: { PhraseMiner.compactForMatch($0.text) == key }) {
+            if consumeRecentOverlayUse(phrases[idx].text) || consumeRecentOverlayUse(normalized) {
                 phrases[idx].lastUsedAt = Date()
                 persist()
                 return phrases[idx]
@@ -85,64 +86,74 @@ final class PhraseStore: ObservableObject {
     }
 
     /// Replace the library with a full AI rebuild. Matching text keeps id / createdAt.
-    /// `count` is observed log frequency, but overlay shortcut uses are never discarded.
+    /// Recent / manual phrases that the model omitted are kept so they are not crowded out.
     func replaceAll(with items: [AIPhraseSuggestion], messages: [SentMessage]) {
-        var existingByText: [String: Phrase] = [:]
-        for phrase in phrases where existingByText[phrase.text] == nil {
-            existingByText[phrase.text] = phrase
+        var existingByKey: [String: Phrase] = [:]
+        for phrase in phrases {
+            let key = PhraseMiner.compactForMatch(phrase.text)
+            guard !key.isEmpty, existingByKey[key] == nil else { continue }
+            existingByKey[key] = phrase
         }
+
         var next: [Phrase] = []
         var seen = Set<String>()
 
         for item in items {
             let normalized = PhraseMiner.normalize(item.text)
             guard PhraseMiner.isEligiblePhrase(normalized) else { continue }
-            guard seen.insert(normalized).inserted else { continue }
-            let observed = observedCount(of: normalized, in: messages)
+            let key = PhraseMiner.compactForMatch(normalized)
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            next.append(makeReplacedPhrase(text: normalized, existing: existingByKey[key], messages: messages))
+        }
 
-            if let existing = existingByText[normalized] {
-                var updated = existing
-                updated.count = max(observed, existing.count)
-                if let latest = latestOccurrence(of: normalized, in: messages),
-                   latest > updated.lastUsedAt {
-                    updated.lastUsedAt = latest
-                }
-                if existing.source != .manual {
-                    updated.source = .ai
-                }
-                next.append(updated)
-            } else {
-                next.append(
-                    Phrase(
-                        text: normalized,
-                        count: observed,
-                        lastUsedAt: latestOccurrence(of: normalized, in: messages) ?? Date(),
-                        source: .ai
-                    )
-                )
-            }
+        let threeDays: TimeInterval = 3 * 24 * 60 * 60
+        for phrase in phrases {
+            let key = PhraseMiner.compactForMatch(phrase.text)
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            guard PhraseMiner.isEligiblePhrase(phrase.text) else { continue }
+            let observed = logOccurrenceCount(of: phrase.text, in: messages)
+            let recentlyUsed = Date().timeIntervalSince(phrase.lastUsedAt) < threeDays
+            let keep = phrase.source == .manual
+                || observed >= 2
+                || (phrase.source != .mined && recentlyUsed)
+            guard keep else { continue }
+            next.append(synced(phrase, messages: messages))
         }
 
         phrases = next
         persist()
+        reconcile(with: messages)
     }
 
-    /// Rebuild `count` / recency from the send log. Overlay shortcut uses can only raise the count.
-    func recomputeCounts(from messages: [SentMessage]) {
-        var changed = false
-        for i in phrases.indices {
-            let observed = observedCount(of: phrases[i].text, in: messages)
-            if observed > phrases[i].count {
-                phrases[i].count = observed
-                changed = true
-            }
-            if let latest = latestOccurrence(of: phrases[i].text, in: messages),
-               latest > phrases[i].lastUsedAt {
-                phrases[i].lastUsedAt = latest
-                changed = true
+    /// Drop junk, collapse punctuation duplicates, and set `count` from whole-message log matches.
+    func reconcile(with messages: [SentMessage]) {
+        var bestByKey: [String: Phrase] = [:]
+        for phrase in phrases {
+            guard PhraseMiner.isEligiblePhrase(phrase.text) else { continue }
+            let updated = synced(phrase, messages: messages)
+            let observed = logOccurrenceCount(of: updated.text, in: messages)
+            if updated.source == .mined && observed == 0 { continue }
+            let key = PhraseMiner.compactForMatch(updated.text)
+            guard !key.isEmpty else { continue }
+            if let existing = bestByKey[key] {
+                bestByKey[key] = mergeDuplicates(existing, updated)
+            } else {
+                bestByKey[key] = updated
             }
         }
-        if changed { persist() }
+        let next = Array(bestByKey.values).sorted {
+            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+            return $0.id.uuidString < $1.id.uuidString
+        }
+        if fingerprint(next) != fingerprint(phrases) {
+            phrases = next
+            persist()
+        }
+    }
+
+    /// Rebuild `count` / recency from the send log.
+    func recomputeCounts(from messages: [SentMessage]) {
+        reconcile(with: messages)
     }
 
     private func consumeRecentOverlayUse(_ text: String) -> Bool {
@@ -150,8 +161,73 @@ final class PhraseStore: ObservableObject {
         return Date().timeIntervalSince(usedAt) < overlaySendDedupeInterval
     }
 
-    private func observedCount(of phrase: String, in messages: [SentMessage]) -> Int {
-        max(1, PhraseMiner.occurrenceCount(of: phrase, in: messages.map(\.text)))
+    private func logOccurrenceCount(of phrase: String, in messages: [SentMessage]) -> Int {
+        PhraseMiner.occurrenceCount(of: phrase, in: messages.map(\.text))
+    }
+
+    private func makeReplacedPhrase(text: String, existing: Phrase?, messages: [SentMessage]) -> Phrase {
+        if var updated = existing {
+            updated.text = text
+            updated = synced(updated, messages: messages)
+            if existing?.source != .manual {
+                updated.source = .ai
+            }
+            return updated
+        }
+        let observed = logOccurrenceCount(of: text, in: messages)
+        return Phrase(
+            text: text,
+            count: max(1, observed),
+            lastUsedAt: latestOccurrence(of: text, in: messages) ?? .distantPast,
+            source: .ai
+        )
+    }
+
+    private func synced(_ phrase: Phrase, messages: [SentMessage]) -> Phrase {
+        var updated = phrase
+        let observed = logOccurrenceCount(of: phrase.text, in: messages)
+        let latest = latestOccurrence(of: phrase.text, in: messages)
+        if observed > 0 {
+            if updated.count > observed {
+                updated.count = observed
+                if let latest {
+                    updated.lastUsedAt = latest
+                }
+            } else if updated.count < observed {
+                updated.count = observed
+            }
+            if let latest, latest > updated.lastUsedAt {
+                updated.lastUsedAt = latest
+            }
+        } else if updated.count < 1 {
+            updated.count = 1
+        }
+        return updated
+    }
+
+    private func mergeDuplicates(_ a: Phrase, _ b: Phrase) -> Phrase {
+        func rank(_ source: PhraseSource) -> Int {
+            switch source {
+            case .manual: return 4
+            case .ai: return 3
+            case .appSend: return 2
+            case .clipboard, .mined: return 1
+            }
+        }
+        var winner = rank(a.source) >= rank(b.source) ? a : b
+        winner.count = max(a.count, b.count)
+        winner.lastUsedAt = max(a.lastUsedAt, b.lastUsedAt)
+        winner.createdAt = min(a.createdAt, b.createdAt)
+        if a.source == .manual || b.source == .manual {
+            winner.source = .manual
+        }
+        return winner
+    }
+
+    private func fingerprint(_ items: [Phrase]) -> Set<String> {
+        Set(items.map {
+            "\($0.id.uuidString)|\(PhraseMiner.compactForMatch($0.text))|\($0.count)|\($0.source.rawValue)|\(Int($0.lastUsedAt.timeIntervalSince1970))"
+        })
     }
 
     private func latestOccurrence(of phrase: String, in messages: [SentMessage]) -> Date? {
