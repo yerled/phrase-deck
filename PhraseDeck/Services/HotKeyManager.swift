@@ -1,12 +1,11 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// Detects double / triple taps of the ⌘ key (left or right).
+/// Detects a double tap of the ⌘ key (left or right).
 final class HotKeyManager {
     static let shared = HotKeyManager()
 
     var onHotKey: (() -> Void)?
-    var onTripleHotKey: (() -> Void)?
 
     private(set) var isTapActive = false
     private var eventTap: CFMachPort?
@@ -144,15 +143,11 @@ final class HotKeyManager {
             }
             lastCleanTapAt = now
 
-            if consecutiveTaps == 2 {
-                DispatchQueue.main.async { [weak self] in
-                    self?.onHotKey?()
-                }
-            } else if consecutiveTaps >= 3 {
+            if consecutiveTaps >= 2 {
                 consecutiveTaps = 0
                 lastCleanTapAt = 0
                 DispatchQueue.main.async { [weak self] in
-                    self?.onTripleHotKey?()
+                    self?.onHotKey?()
                 }
             }
         }

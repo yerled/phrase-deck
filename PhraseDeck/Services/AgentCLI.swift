@@ -1,5 +1,13 @@
 import Foundation
 
+struct AgentRunResult {
+    var text: String
+    var usage: AgentTokenUsage
+    var model: String?
+    var sessionId: String?
+    var durationMs: Int?
+}
+
 enum AgentCLI {
     static func resolveAgentPath() -> String {
         let candidates = [
@@ -23,7 +31,7 @@ enum AgentCLI {
         workspace: URL,
         debugDir: URL? = nil,
         onProgress: ((String) -> Void)? = nil
-    ) async throws -> String {
+    ) async throws -> AgentRunResult {
         let agentPath = resolveAgentPath()
         guard FileManager.default.isExecutableFile(atPath: agentPath) else {
             throw NSError(domain: "PhraseDeck", code: 1, userInfo: [
@@ -34,7 +42,7 @@ enum AgentCLI {
         let key = resolvedAPIKey(apiKey)
         guard !key.isEmpty else {
             throw NSError(domain: "PhraseDeck", code: 401, userInfo: [
-                NSLocalizedDescriptionKey: "智能回复需要 CURSOR_API_KEY。打开 https://cursor.com/dashboard/integrations 创建 User API Key，粘贴到 PhraseDeck 设置。仅执行 agent login 不够（无头模式 -p 不认浏览器登录）。",
+                NSLocalizedDescriptionKey: "需要 CURSOR_API_KEY。打开 https://cursor.com/dashboard/integrations 创建 User API Key，粘贴到 PhraseDeck 设置。仅执行 agent login 不够（无头模式 -p 不认浏览器登录）。",
             ])
         }
 
@@ -47,18 +55,28 @@ enum AgentCLI {
             "--trust",
             "--mode", "ask",
             "--model", "auto",
-            "--output-format", "text",
+            "--output-format", "stream-json",
             "--workspace", workspace.path,
             prompt,
         ]
-        hopProgress(onProgress, "模型：auto")
-        return try await runProcess(
+        hopProgress(onProgress, "模型：auto · 输出：stream-json（含 token）")
+        let raw = try await runProcess(
             launchPath: agentPath,
             arguments: args,
             environmentAPIKey: key,
             debugDir: debugDir,
             onProgress: onProgress
         )
+        let parsed = parseRunOutput(raw)
+        if parsed.usage.hasAny {
+            hopProgress(
+                onProgress,
+                "token：in \(parsed.usage.inputTokens) / out \(parsed.usage.outputTokens) / cache \(parsed.usage.cacheReadTokens)+\(parsed.usage.cacheWriteTokens) · 合计 \(parsed.usage.totalTokens)"
+            )
+        } else {
+            hopProgress(onProgress, "本次未解析到 token usage（仍已记账）")
+        }
+        return parsed
     }
 
     /// Settings first, then process env, then login-shell ~/.zshrc (GUI apps don't inherit Terminal env).
@@ -106,6 +124,154 @@ enum AgentCLI {
             ])
         }
         return Data(String(trimmed[start...end]).utf8)
+    }
+
+    /// Prefer stream-json / json envelopes; fall back to raw assistant text.
+    static func parseRunOutput(_ raw: String) -> AgentRunResult {
+        let lines = raw
+            .split(whereSeparator: \.isNewline)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var usage = AgentTokenUsage.zero
+        var resultUsage: AgentTokenUsage?
+        var textPieces: [String] = []
+        var model: String?
+        var sessionId: String?
+        var durationMs: Int?
+        var sawEnvelope = false
+
+        for line in lines {
+            guard line.hasPrefix("{"),
+                  let data = line.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            sawEnvelope = true
+
+            if let m = obj["model"] as? String, !m.isEmpty { model = m }
+            if let sid = stringValue(obj["session_id"]) ?? stringValue(obj["sessionId"]) {
+                sessionId = sid
+            }
+            if let ms = intValue(obj["duration_ms"]) ?? intValue(obj["durationMs"]) {
+                durationMs = ms
+            }
+
+            if let type = obj["type"] as? String {
+                switch type {
+                case "system":
+                    if let m = obj["model"] as? String, !m.isEmpty { model = m }
+                case "assistant":
+                    if let message = obj["message"] as? [String: Any],
+                       let content = message["content"] as? [[String: Any]] {
+                        let chunk = content.compactMap { $0["text"] as? String }.joined()
+                        if !chunk.isEmpty { textPieces.append(chunk) }
+                    }
+                    if let nested = obj["usage"] as? [String: Any], let u = parseUsage(from: nested) {
+                        usage.merge(u)
+                    }
+                case "result":
+                    if let result = obj["result"] as? String {
+                        textPieces = [result]
+                    }
+                    if let nested = obj["usage"] as? [String: Any], let u = parseUsage(from: nested) {
+                        resultUsage = u
+                    } else if let u = parseUsage(from: obj) {
+                        resultUsage = u
+                    }
+                case "usage":
+                    if let nested = obj["usage"] as? [String: Any], let u = parseUsage(from: nested) {
+                        usage.merge(u)
+                    } else if let u = parseUsage(from: obj) {
+                        usage.merge(u)
+                    }
+                default:
+                    if let nested = obj["usage"] as? [String: Any], let u = parseUsage(from: nested) {
+                        usage.merge(u)
+                    }
+                }
+            } else if let nested = obj["usage"] as? [String: Any], let u = parseUsage(from: nested) {
+                usage.merge(u)
+            } else if let u = parseUsage(from: obj) {
+                usage.merge(u)
+            }
+        }
+
+        if let resultUsage {
+            usage = resultUsage
+        }
+
+        if !sawEnvelope {
+            // Older text-only output, or a single JSON result blob without newlines.
+            if let data = raw.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let result = obj["result"] as? String {
+                    textPieces = [result]
+                }
+                if let u = parseUsage(from: obj["usage"] as? [String: Any] ?? obj) {
+                    usage = u
+                }
+                model = (obj["model"] as? String) ?? model
+                sessionId = stringValue(obj["session_id"]) ?? stringValue(obj["sessionId"]) ?? sessionId
+                durationMs = intValue(obj["duration_ms"]) ?? intValue(obj["durationMs"]) ?? durationMs
+            } else {
+                textPieces = [raw]
+            }
+        }
+
+        let text = textPieces.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? textPieces.last!
+            : raw
+        return AgentRunResult(
+            text: text,
+            usage: usage,
+            model: model,
+            sessionId: sessionId,
+            durationMs: durationMs
+        )
+    }
+
+    private static func parseUsage(from obj: [String: Any]) -> AgentTokenUsage? {
+        let input = intValue(obj["inputTokens"])
+            ?? intValue(obj["input_tokens"])
+            ?? 0
+        let output = intValue(obj["outputTokens"])
+            ?? intValue(obj["output_tokens"])
+            ?? 0
+        let cacheRead = intValue(obj["cacheReadTokens"])
+            ?? intValue(obj["cache_read_tokens"])
+            ?? 0
+        let cacheWrite = intValue(obj["cacheWriteTokens"])
+            ?? intValue(obj["cache_write_tokens"])
+            ?? 0
+        let usage = AgentTokenUsage(
+            inputTokens: input,
+            outputTokens: output,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite
+        )
+        return usage.hasAny ? usage : nil
+    }
+
+    private static func intValue(_ any: Any?) -> Int? {
+        switch any {
+        case let v as Int: return v
+        case let v as Int64: return Int(v)
+        case let v as Double: return Int(v)
+        case let v as NSNumber: return v.intValue
+        case let v as String: return Int(v.trimmingCharacters(in: .whitespacesAndNewlines))
+        default: return nil
+        }
+    }
+
+    private static func stringValue(_ any: Any?) -> String? {
+        switch any {
+        case let v as String:
+            let t = v.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        default:
+            return nil
+        }
     }
 
     private static func runProcess(

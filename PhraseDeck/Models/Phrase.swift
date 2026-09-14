@@ -38,7 +38,7 @@ struct Phrase: Identifiable, Codable, Hashable {
     }
 }
 
-/// Monday–Sunday weeks in China Standard Time.
+/// Monday–Sunday weeks in China Standard Time (Asia/Shanghai).
 enum ChineseNaturalWeek {
     static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -48,12 +48,22 @@ enum ChineseNaturalWeek {
         return calendar
     }
 
+    static func startOfDay(containing date: Date) -> Date {
+        calendar.startOfDay(for: date)
+    }
+
     static func startOfWeek(containing date: Date) -> Date {
         let calendar = Self.calendar
-        let startOfDay = calendar.startOfDay(for: date)
-        let weekday = calendar.component(.weekday, from: startOfDay)
+        let dayStart = startOfDay(containing: date)
+        let weekday = calendar.component(.weekday, from: dayStart)
         let daysFromMonday = (weekday + 5) % 7
-        return calendar.date(byAdding: .day, value: -daysFromMonday, to: startOfDay) ?? startOfDay
+        return calendar.date(byAdding: .day, value: -daysFromMonday, to: dayStart) ?? dayStart
+    }
+
+    static func startOfMonth(containing date: Date) -> Date {
+        let calendar = Self.calendar
+        let comps = calendar.dateComponents([.year, .month], from: date)
+        return calendar.date(from: comps) ?? startOfDay(containing: date)
     }
 
     /// Whole China natural weeks between the two dates. Same week → 0; last week → 1.

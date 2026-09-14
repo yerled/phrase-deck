@@ -26,9 +26,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.onHotKey = {
             OverlayPanelController.shared.toggle()
         }
-        HotKeyManager.shared.onTripleHotKey = {
-            OverlayPanelController.shared.showSmartReply()
-        }
         PermissionManager.shared.startWatching()
     }
 
@@ -47,12 +44,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "显示常用短语（连按两次 ⌘）", action: #selector(showOverlay), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "智能回复（连按三次 ⌘）", action: #selector(showSmartReply), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "立即 AI 总结", action: #selector(runAI), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "请求辅助功能权限", action: #selector(requestAccess), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "打开智能回复调试日志", action: #selector(openDebugLogs), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "退出 PhraseDeck", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
@@ -62,10 +57,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showOverlay() {
         OverlayPanelController.shared.show()
-    }
-
-    @objc private func showSmartReply() {
-        OverlayPanelController.shared.showSmartReply()
     }
 
     @objc private func runAI() {
@@ -79,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentViewController: hosting)
             window.title = "PhraseDeck 设置"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 580, height: 720))
+            window.setContentSize(NSSize(width: 620, height: 780))
             window.center()
             settingsWindow = window
         }
@@ -90,10 +81,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func requestAccess() {
         PermissionManager.shared.refreshFromSettings()
         PermissionManager.openAccessibilitySettings()
-    }
-
-    @objc private func openDebugLogs() {
-        DebugSessionLog.openFolder()
     }
 
     @objc private func quit() {

@@ -12,8 +12,7 @@ macOS 菜单栏工具：从飞书 / Cursor 的发送内容学习常用短语，*
 | AI 全量总结 | `CursorAISummarizer`：默认每 30 分钟；启动约 45s 后也会跑一次。输入为**当前短语库 + 全部发送日志**，输出替换整个短语库；只保留工作/生活可复用短句，丢弃一次性和无意义内容。模型漏掉的短语若为本周/上周用过、手动添加或日志命中≥2，仍会保留。失败则本地 `PhraseMiner` 提炼（不替换现有库） |
 | 唤起浮层 | `HotKeyManager`：约 0.4s 内连按两次 ⌘（左右均可；中间按了别的键不算） |
 | 选择并插入 | 浮层 Top10（按 `score`）；`1–9` / `0` 或点击；`Esc` 关闭；`TextInserter` 模拟 ⌘V |
-| 智能回复 | 连按三次 ⌘。识别前台 App，按 `ChatContextProviding` 取当前聊天原文；Cursor 读本地 Composer，其它 App（含飞书）走通用「无法获取」 |
-| 设置与菜单 | 开关采集 / AI、API Key、手动添加、删改、清空；菜单含「立即 AI 总结」 |
+| 设置与菜单 | 开关采集 / AI、API Key、手动添加、删改、清空；菜单含「立即 AI 总结」；设置页展示 Token 用量（今日 / 本周 / 本月 / 总量） |
 
 分数：`score = 发送次数 × 0.7 + 近因衰减 × 3`。近因按中国自然周（周一至周日，Asia/Shanghai）计算：本周和上周不衰减，更早的周按 `exp(-(周差 - 1))` 衰减。通过浮层快捷键 / 点击插入某条短语时，该短语次数 +1、近因刷新为当前周，分数会继续叠加；随后立刻发送同一句不会再加一次；对账只会用发送日志抬高次数/近因，不会回拨浮层累计。浮层 `×N` 是累计使用次数（发送日志 + 浮层插入）。
 
@@ -22,7 +21,7 @@ macOS 菜单栏工具：从飞书 / Cursor 的发送内容学习常用短语，*
 - macOS 13+
 - Xcode（`project.yml` 目标为 16）+ [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 - **辅助功能**权限：双击 ⌘、发送采集、粘贴到其它 App 都依赖它
-- AI 总结：本机可执行 `agent`（常见路径 `~/.local/bin/agent`）；需 `agent login` 或设置里的 `CURSOR_API_KEY`
+- AI 总结：本机可执行 `agent`（常见路径 `~/.local/bin/agent`）；需设置里的 `CURSOR_API_KEY`
 
 白名单 Bundle ID 见 `AppConst`（飞书/Lark 若干、`com.todesktop.230313mzl4w4u92` / `com.cursor`）。
 
@@ -61,6 +60,7 @@ make open     # 生成工程并打开 Xcode，⌘R
 |------|------|
 | `phrases.json` | 短语库（由全量 AI 总结维护，无条数上限） |
 | `sent-messages.json` | 发送采集日志（最多约 3000 条） |
+| `token-usage.json` | Cursor Agent 调用的本地 token 统计（AI 总结） |
 | `ai-workspace/` | Cursor Agent 工作目录 |
 
 ## 架构
@@ -74,13 +74,6 @@ AppSendCollector ──► MessageLogStore ──► CursorAISummarizer
 手动添加 ──────────────────► PhraseStore (.manual) ┘
                                       │ topPhrases(10)
 HotKeyManager（双击 ⌘）──► OverlayPanelController ──► PhraseStore
-HotKeyManager（三击 ⌘）──► ChatContextResolver
-                              ├ CursorChatContextProvider（本地 Composer）
-                              └ 未实现的 App → 无法获取聊天文本
-                                         │
-                                   SmartReplyGenerator ──► AgentCLI
-                                         │
-                                   OverlayPanelController
                                          │
                                    TextInserter (⌘V)
 ```

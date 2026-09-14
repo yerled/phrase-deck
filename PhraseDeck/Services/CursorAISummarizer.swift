@@ -85,28 +85,71 @@ final class CursorAISummarizer: ObservableObject {
         defer { isRunning = false }
 
         do {
-            let suggestions = try await runCursorAgent(phrases: phrases, messages: messages)
+            let (suggestions, run) = try await runCursorAgent(phrases: phrases, messages: messages)
             guard !suggestions.isEmpty else {
+                TokenUsageStore.shared.record(
+                    kind: .summarize,
+                    usage: run.usage,
+                    model: run.model,
+                    sessionId: run.sessionId,
+                    durationMs: run.durationMs,
+                    success: false,
+                    note: "空短语列表"
+                )
                 throw NSError(domain: "PhraseDeck", code: 3, userInfo: [
                     NSLocalizedDescriptionKey: "Agent 返回空短语列表，已保留现有短语库",
                 ])
             }
             PhraseStore.shared.replaceAll(with: suggestions, messages: messages)
+            TokenUsageStore.shared.record(
+                kind: .summarize,
+                usage: run.usage,
+                model: run.model,
+                sessionId: run.sessionId,
+                durationMs: run.durationMs,
+                success: true
+            )
             let now = Date()
             lastRunAt = now
             UserDefaults.standard.set(now, forKey: Keys.lastRun)
-            lastStatus = "成功：短语库更新为 \(PhraseStore.shared.phrases.count) 条（基于 \(phrases.count) 条原短语 + \(messages.count) 条日志）"
+            let tokenNote = run.usage.hasAny
+                ? " · token \(Self.formatTokens(run.usage.totalTokens))"
+                : ""
+            lastStatus = "成功：短语库更新为 \(PhraseStore.shared.phrases.count) 条（基于 \(phrases.count) 条原短语 + \(messages.count) 条日志）\(tokenNote)"
         } catch {
+            if (error as NSError).domain == "PhraseDeck", (error as NSError).code == 3 {
+                // already recorded above
+            } else {
+                TokenUsageStore.shared.record(
+                    kind: .summarize,
+                    success: false,
+                    note: error.localizedDescription
+                )
+            }
             lastStatus = "Cursor AI 失败，已保留现有短语库：\(error.localizedDescription)"
             NSLog("PhraseDeck AI summarize failed: \(error)")
         }
     }
 
-    private func runCursorAgent(phrases: [Phrase], messages: [SentMessage]) async throws -> [AIPhraseSuggestion] {
+    private func runCursorAgent(
+        phrases: [Phrase],
+        messages: [SentMessage]
+    ) async throws -> ([AIPhraseSuggestion], AgentRunResult) {
         try writeWorkspaceInputs(phrases: phrases, messages: messages)
         let prompt = Self.buildPrompt(phrases: phrases, messages: messages)
-        let output = try await AgentCLI.runAsk(prompt: prompt, apiKey: apiKey, workspace: workDir)
-        return try Self.parseSuggestions(from: output)
+        let run = try await AgentCLI.runAsk(prompt: prompt, apiKey: apiKey, workspace: workDir)
+        let suggestions = try Self.parseSuggestions(from: run.text)
+        return (suggestions, run)
+    }
+
+    private static func formatTokens(_ n: Int) -> String {
+        if n >= 1_000_000 {
+            return String(format: "%.1fM", Double(n) / 1_000_000)
+        }
+        if n >= 1_000 {
+            return String(format: "%.1fK", Double(n) / 1_000)
+        }
+        return "\(n)"
     }
 
     private func writeWorkspaceInputs(phrases: [Phrase], messages: [SentMessage]) throws {

@@ -14,8 +14,7 @@ struct SettingsView: View {
                 GroupBox("快捷键") {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("常用回复：连按两次 ⌘", systemImage: "keyboard")
-                        Label("智能回复：连按三次 ⌘", systemImage: "sparkles")
-                        Text("约 0.4 秒内连按；第三次会从常用语升级为智能回复。浮层内按数字插入，Esc 关闭。")
+                        Text("约 0.4 秒内连按两次。浮层内按数字插入，Esc 关闭。")
                             .foregroundStyle(.secondary)
                             .font(.callout)
                     }
@@ -88,7 +87,7 @@ struct SettingsView: View {
                                 if newValue { ai.start() } else { ai.stop() }
                             }
                         ))
-                        SecureField("CURSOR_API_KEY（智能回复 / 总结必填）", text: $ai.apiKey)
+                        SecureField("CURSOR_API_KEY（AI 总结必填）", text: $ai.apiKey)
                             .textFieldStyle(.roundedBorder)
                         Link("打开 Cursor Dashboard 创建 User API Key", destination: URL(string: "https://cursor.com/dashboard/integrations")!)
                             .font(.caption)
@@ -113,6 +112,11 @@ struct SettingsView: View {
                             .textSelection(.enabled)
                     }
                     .padding(4)
+                }
+
+                GroupBox("Token 用量") {
+                    TokenUsageStatsView()
+                        .padding(4)
                 }
 
                 GroupBox("手动添加") {
@@ -167,9 +171,121 @@ struct SettingsView: View {
             }
             .padding(20)
         }
-        .frame(width: 580, height: 720)
+        .frame(width: 620, height: 780)
         .onAppear {
             PermissionManager.shared.syncTaps(force: true)
         }
+    }
+}
+
+private struct TokenUsageStatsView: View {
+    @ObservedObject private var usageStore = TokenUsageStore.shared
+    @State private var period: TokenUsagePeriod = .day
+
+    var body: some View {
+        let summary = usageStore.summary(for: period)
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("统计维度", selection: $period) {
+                ForEach(TokenUsagePeriod.allCases) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+            ], spacing: 8) {
+                metric("调用", "\(summary.callCount)")
+                metric("成功", "\(summary.successCount)")
+                metric("输入", formatTokens(summary.usage.inputTokens))
+                metric("输出", formatTokens(summary.usage.outputTokens))
+                metric("缓存读", formatTokens(summary.usage.cacheReadTokens))
+                metric("缓存写", formatTokens(summary.usage.cacheWriteTokens))
+                metric("合计", formatTokens(summary.usage.totalTokens))
+                metric("次均", formatTokens(summary.averageTotalTokens))
+            }
+
+            // Compact comparison across all periods
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(TokenUsagePeriod.allCases) { item in
+                    let s = usageStore.summary(for: item)
+                    HStack {
+                        Text(item.title)
+                            .frame(width: 36, alignment: .leading)
+                        Text("\(s.callCount) 次")
+                            .frame(width: 52, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                        Text(formatTokens(s.usage.totalTokens))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .fontWeight(item == period ? .semibold : .regular)
+                    }
+                    .font(.caption.monospacedDigit())
+                }
+            }
+            .padding(.top, 2)
+
+            if let last = usageStore.lastEvent {
+                Text(lastEventLine(last))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            } else {
+                Text("尚无本地记录。AI 总结成功后会写入 token-usage.json。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("自然日 / 周（周一至周日）/ 月按 Asia/Shanghai。合计 = 输入 + 输出 + 缓存读写。")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            HStack {
+                Link("Cursor Usage Dashboard", destination: URL(string: "https://cursor.com/dashboard/usage")!)
+                    .font(.caption)
+                Spacer()
+                Button("清空用量统计", role: .destructive) {
+                    usageStore.clear()
+                }
+                .disabled(usageStore.events.isEmpty)
+            }
+        }
+    }
+
+    private func metric(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.body.monospacedDigit().weight(.medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func lastEventLine(_ event: TokenUsageEvent) -> String {
+        let when = event.createdAt.formatted(date: .abbreviated, time: .shortened)
+        let ok = event.success ? "成功" : "失败"
+        let tokens = event.usage.hasAny ? formatTokens(event.usage.totalTokens) : "未知"
+        let model = event.model.map { " · \($0)" } ?? ""
+        return "最近：\(when) · \(event.kind.title) · \(ok) · \(tokens)\(model)"
+    }
+
+    private func formatTokens(_ n: Int) -> String {
+        if n >= 1_000_000 {
+            return String(format: "%.1fM", Double(n) / 1_000_000)
+        }
+        if n >= 10_000 {
+            return String(format: "%.1fK", Double(n) / 1_000)
+        }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: n)) ?? "\(n)"
     }
 }
