@@ -86,7 +86,7 @@ final class PhraseStore: ObservableObject {
     }
 
     /// Replace the library with a full AI rebuild. Matching text keeps id / createdAt.
-    /// Recent / manual phrases that the model omitted are kept so they are not crowded out.
+    /// Manual, frequently logged, or this/last-week phrases the model omitted are kept.
     func replaceAll(with items: [AIPhraseSuggestion], messages: [SentMessage]) {
         var existingByKey: [String: Phrase] = [:]
         for phrase in phrases {
@@ -106,13 +106,13 @@ final class PhraseStore: ObservableObject {
             next.append(makeReplacedPhrase(text: normalized, existing: existingByKey[key], messages: messages))
         }
 
-        let threeDays: TimeInterval = 3 * 24 * 60 * 60
         for phrase in phrases {
             let key = PhraseMiner.compactForMatch(phrase.text)
             guard !key.isEmpty, seen.insert(key).inserted else { continue }
             guard PhraseMiner.isEligiblePhrase(phrase.text) else { continue }
             let observed = logOccurrenceCount(of: phrase.text, in: messages)
-            let recentlyUsed = Date().timeIntervalSince(phrase.lastUsedAt) < threeDays
+            // Align with recency score: this China natural week + last week stay fresh.
+            let recentlyUsed = ChineseNaturalWeek.weeksElapsed(from: phrase.lastUsedAt, to: Date()) <= 1
             let keep = phrase.source == .manual
                 || observed >= 2
                 || (phrase.source != .mined && recentlyUsed)
@@ -125,7 +125,7 @@ final class PhraseStore: ObservableObject {
         reconcile(with: messages)
     }
 
-    /// Drop junk, collapse punctuation duplicates, and set `count` from whole-message log matches.
+    /// Drop junk, collapse punctuation duplicates, and raise `count` / recency from log matches.
     func reconcile(with messages: [SentMessage]) {
         var bestByKey: [String: Phrase] = [:]
         for phrase in phrases {
@@ -183,21 +183,15 @@ final class PhraseStore: ObservableObject {
         )
     }
 
+    /// Raise `count` / `lastUsedAt` from the send log; never rewind overlay bumps.
     private func synced(_ phrase: Phrase, messages: [SentMessage]) -> Phrase {
         var updated = phrase
         let observed = logOccurrenceCount(of: phrase.text, in: messages)
         let latest = latestOccurrence(of: phrase.text, in: messages)
         if observed > 0 {
-            if updated.count > observed {
-                updated.count = observed
-                if let latest {
-                    updated.lastUsedAt = latest
-                }
-            } else if updated.count < observed {
-                updated.count = observed
-            }
-            if let latest, latest > updated.lastUsedAt {
-                updated.lastUsedAt = latest
+            updated.count = max(updated.count, observed)
+            if let latest {
+                updated.lastUsedAt = max(updated.lastUsedAt, latest)
             }
         } else if updated.count < 1 {
             updated.count = 1
