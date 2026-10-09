@@ -336,22 +336,35 @@ enum AgentCLI {
                     hopProgress(onProgress, "stderr：\(preview.prefix(160))")
                 }
 
-                let combined = (outStr + "\n" + errStr)
-                if combined.localizedCaseInsensitiveContains("Authentication required")
-                    || combined.localizedCaseInsensitiveContains("CURSOR_API_KEY") {
+                // Only classify CLI/transport errors from stderr + stream-json error
+                // envelopes. Never scan full stdout: the prompt/corpus (and model
+                // thinking) can legitimately contain strings like CURSOR_API_KEY.
+                let authFailure = looksLikeCLIFailure(
+                    stderr: errStr,
+                    stdout: outStr,
+                    needles: ["Authentication required", "CURSOR_API_KEY"]
+                )
+                if authFailure {
                     continuation.resume(throwing: NSError(domain: "PhraseDeck", code: 401, userInfo: [
                         NSLocalizedDescriptionKey: "Cursor 无头调用未认证。请到 https://cursor.com/dashboard/integrations 创建 User API Key，填进 PhraseDeck 设置。agent login 对 -p 模式无效。",
                     ]))
                     return
                 }
-                if combined.localizedCaseInsensitiveContains("out of usage")
-                    || combined.localizedCaseInsensitiveContains("Increase limits") {
+                if looksLikeCLIFailure(
+                    stderr: errStr,
+                    stdout: outStr,
+                    needles: ["out of usage", "Increase limits"]
+                ) {
                     continuation.resume(throwing: NSError(domain: "PhraseDeck", code: 429, userInfo: [
                         NSLocalizedDescriptionKey: "Cursor 额度用完了。已尝试 Auto；若仍失败，请到 Cursor 切换 Auto 或让管理员提高额度。",
                     ]))
                     return
                 }
-                if combined.localizedCaseInsensitiveContains("Workspace Trust Required") {
+                if looksLikeCLIFailure(
+                    stderr: errStr,
+                    stdout: outStr,
+                    needles: ["Workspace Trust Required"]
+                ) {
                     continuation.resume(throwing: NSError(domain: "PhraseDeck", code: 403, userInfo: [
                         NSLocalizedDescriptionKey: "Cursor Agent 拒绝未信任的工作区。请更新 PhraseDeck 后重试（已自动加 --trust）。",
                     ]))
@@ -381,5 +394,30 @@ enum AgentCLI {
         } else {
             DispatchQueue.main.async { onProgress?(message) }
         }
+    }
+
+    /// True when stderr mentions a needle, or stream-json has an error result/envelope mentioning it.
+    private static func looksLikeCLIFailure(stderr: String, stdout: String, needles: [String]) -> Bool {
+        if needles.contains(where: { stderr.localizedCaseInsensitiveContains($0) }) {
+            return true
+        }
+        for line in stdout.split(whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("{"),
+                  let data = trimmed.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                continue
+            }
+            let type = obj["type"] as? String
+            let isError = (obj["is_error"] as? Bool) == true
+                || type == "error"
+                || ((obj["subtype"] as? String)?.localizedCaseInsensitiveContains("error") == true)
+            guard isError else { continue }
+            let blob = trimmed + "\n" + stderr
+            if needles.contains(where: { blob.localizedCaseInsensitiveContains($0) }) {
+                return true
+            }
+        }
+        return false
     }
 }
